@@ -30,4 +30,8 @@ export class UsersService {
   async updateRefreshToken(id: string, hash: string | null): Promise<void> {
     await this.userModel.findByIdAndUpdate(id, { refresh_token_hash: hash }).exec()
   }
+
+  async updateCharacterId(id: string, characterId: string | null): Promise<void> {
+    await this.userModel.findByIdAndUpdate(id, { character_id: characterId }).exec()
+  }
 }
