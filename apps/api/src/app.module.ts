@@ -9,6 +9,9 @@ import { LocationsModule } from './locations/locations.module'
 import { SessionsModule } from './sessions/sessions.module'
 import { NotesModule } from './notes/notes.module'
 import { PartyStateModule } from './party-state/party-state.module'
+import { RulesModule } from './rules/rules.module'
+import { MapsModule } from './maps/maps.module'
+import { HexesModule } from './hexes/hexes.module'
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { PartyStateModule } from './party-state/party-state.module'
     SessionsModule,
     NotesModule,
     PartyStateModule,
+    RulesModule,
+    MapsModule,
+    HexesModule,
   ],
 })
 export class AppModule {}

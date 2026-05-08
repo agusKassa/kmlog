@@ -16,9 +16,56 @@ export type LocationType = 'city' | 'dungeon' | 'wilderness' | 'building' | 'reg
 
 export type NpcRole = 'ally' | 'enemy' | 'neutral' | 'unknown'
 
-export type MentionEntityType = 'character' | 'npc' | 'location' | 'session'
+export type MentionEntityType = 'character' | 'npc' | 'location' | 'session' | 'hex'
 
-// Pathbuilder2e export format (pathbuilder2e.com/json.php?id={id})
+// ── Hex map types ─────────────────────────────────────────────────────────────
+
+export type TerrainType =
+  | 'plains' | 'hills' | 'forest' | 'swamp' | 'mountains'
+  | 'desert' | 'tundra' | 'lake' | 'ocean' | 'other'
+
+// 0 = center, 1-6 = vertices of a pointy-top hex (1 = top, clockwise)
+export type HexPoint = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+export type HexFeatureType =
+  | 'city' | 'town' | 'village' | 'dungeon' | 'cave'
+  | 'ruins' | 'fortress' | 'temple' | 'mine' | 'landmark' | 'other'
+
+export type LinearFeatureType =
+  | 'river' | 'stream' | 'road' | 'trail' | 'cliff' | 'coastline' | 'wall' | 'bridge'
+
+export interface HexPointFeature {
+  type: HexFeatureType
+  position: HexPoint
+  label: string | null
+  location_id: string | null
+}
+
+export interface HexLinearFeature {
+  type: LinearFeatureType
+  path: HexPoint[]  // e.g. [6, 0, 3] = enters NW, through center, exits SE
+}
+
+export interface MapHexConfig {
+  hex_size_px: number
+  cols: number
+  rows: number
+  hex_size_miles: number
+  travel_hours_per_day: number
+  party_speed_ft: number
+}
+
+// ── Rules types ───────────────────────────────────────────────────────────────
+
+export const DEFAULT_RULE_CATEGORIES = [
+  'combat', 'exploration', 'social', 'conditions',
+  'ancestry', 'class', 'magic', 'items', 'house-rules', 'general',
+] as const
+
+export type DefaultRuleCategorySlug = typeof DEFAULT_RULE_CATEGORIES[number]
+
+// ── Pathbuilder2e export format (pathbuilder2e.com/json.php?id={id}) ──────────
+
 export interface PathbuilderBuild {
   name: string
   class: string
