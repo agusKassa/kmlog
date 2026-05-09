@@ -108,6 +108,23 @@ export interface ApiCharacter {
   build: PathbuilderBuild
 }
 
+export type MentionEntityType = 'character' | 'npc' | 'location' | 'session' | 'hex'
+
+export interface ApiNoteMention {
+  entity_type: MentionEntityType
+  entity_id: string
+}
+
+export interface ApiNote {
+  _id: string
+  author_id: string
+  title: string | null
+  content: string
+  mentions: ApiNoteMention[]
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ApiPartyStateVersion {
   content: string
   updated_by: string
