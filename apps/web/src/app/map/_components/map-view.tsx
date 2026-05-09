@@ -692,6 +692,38 @@ export function MapView({ map, hexes, locations }: Props) {
     setLocalHexes(prev => prev.map(h => h._id === updated._id ? updated : h))
   }, [])
 
+  // Keep refs so the non-passive wheel handler always sees current values
+  const viewRef = useRef(view)
+  const initRef = useRef({ initTx: 0, initTy: 0 })
+  useEffect(() => { viewRef.current = view }, [view])
+  useEffect(() => { initRef.current = { initTx, initTy } }, [initTx, initTy])
+
+  useEffect(() => {
+    const svgEl = svgRef.current
+    if (!svgEl) return
+    function onWheel(e: WheelEvent) {
+      e.preventDefault()
+      e.stopPropagation()
+      const rect = svgEl!.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+      const factor = e.deltaY > 0 ? 0.88 : 1.14
+      const { pan, zoom } = viewRef.current
+      const { initTx: tx, initTy: ty } = initRef.current
+      const newZoom = Math.min(3.5, Math.max(0.2, zoom * factor))
+      const ratio = newZoom / zoom
+      setView({
+        zoom: newZoom,
+        pan: {
+          x: mx - (mx - tx - pan.x) * ratio - tx,
+          y: my - (my - ty - pan.y) * ratio - ty,
+        },
+      })
+    }
+    svgEl.addEventListener('wheel', onWheel, { passive: false })
+    return () => svgEl.removeEventListener('wheel', onWheel)
+  }, []) // empty deps — handler reads from refs
+
   const handlePointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     dragRef.current = {
       active: true,
@@ -737,28 +769,6 @@ export function MapView({ map, hexes, locations }: Props) {
       if (closestId) setSelectedHexId(prev => prev === closestId ? null : closestId)
     }
   }, [initTx, initTy, view.pan, view.zoom, hexData])
-
-  const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault()
-    const svgEl = svgRef.current
-    if (!svgEl) return
-    const rect = svgEl.getBoundingClientRect()
-    const mx = e.clientX - rect.left
-    const my = e.clientY - rect.top
-    const factor = e.deltaY > 0 ? 0.88 : 1.14
-
-    setView(({ pan, zoom }) => {
-      const newZoom = Math.min(3.5, Math.max(0.2, zoom * factor))
-      const ratio = newZoom / zoom
-      return {
-        zoom: newZoom,
-        pan: {
-          x: mx - (mx - initTx - pan.x) * ratio - initTx,
-          y: my - (my - initTy - pan.y) * ratio - initTy,
-        },
-      }
-    })
-  }, [initTx, initTy])
 
   // Render hovered hex last so it appears on top of neighbors
   const sortedHexData = useMemo(() => {
@@ -835,7 +845,6 @@ export function MapView({ map, hexes, locations }: Props) {
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
-              onWheel={handleWheel}
             >
               <defs>
                 <pattern id="mapgrid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
