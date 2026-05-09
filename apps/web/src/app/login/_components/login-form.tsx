@@ -19,7 +19,8 @@ export function LoginForm() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
