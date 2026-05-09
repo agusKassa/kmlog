@@ -22,6 +22,27 @@ function hexPoints(cx: number, cy: number, radius: number): string {
   }).join(' ')
 }
 
+// Returns the midpoint of a hex edge (pointy-top, edges 0-5: NE E SE SW W NW)
+function edgeMidpoint(cx: number, cy: number, r: number, edge: number): [number, number] {
+  const a1 = (Math.PI / 180) * (60 * edge - 90)
+  const a2 = (Math.PI / 180) * (60 * ((edge + 1) % 6) - 90)
+  return [
+    ((Math.cos(a1) + Math.cos(a2)) / 2) * r + cx,
+    ((Math.sin(a1) + Math.sin(a2)) / 2) * r + cy,
+  ]
+}
+
+const LINEAR_STYLE: Record<string, { stroke: string; width: number; dash?: string }> = {
+  river:     { stroke: '#2a6aad', width: 2.2 },
+  stream:    { stroke: '#2a6aad', width: 1.4, dash: '3 2' },
+  road:      { stroke: '#7a5c30', width: 1.8, dash: '4 2' },
+  trail:     { stroke: '#5a4020', width: 1.2, dash: '3 3' },
+  cliff:     { stroke: '#4a3a30', width: 2.0 },
+  coastline: { stroke: '#2a6aad', width: 1.6 },
+  wall:      { stroke: '#5a5050', width: 1.8 },
+  bridge:    { stroke: '#7a5c30', width: 2.2 },
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 interface HexNote {
@@ -1338,6 +1359,22 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                         <polygon points={inner} fill="rgba(245,158,11,0.10)"
                           stroke="#f59e0b" strokeWidth={1.8} filter="url(#hexglow)" />
                       )}
+
+                      {/* Linear features — visible when discovered */}
+                      {showTerrain && hex.linear_features.map((feat, fi) => {
+                        if (!feat.path || feat.path.length < 2) return null
+                        const style = LINEAR_STYLE[feat.type] ?? LINEAR_STYLE.river
+                        const [x1, y1] = edgeMidpoint(hex.x, hex.y, HEX_R - 1.2, feat.path[0])
+                        const [x2, y2] = edgeMidpoint(hex.x, hex.y, HEX_R - 1.2, feat.path[1])
+                        return (
+                          <path key={`lf-${fi}`}
+                            d={`M ${x1} ${y1} Q ${hex.x} ${hex.y} ${x2} ${y2}`}
+                            stroke={style.stroke} strokeWidth={style.width}
+                            strokeDasharray={style.dash ?? undefined}
+                            fill="none" strokeLinecap="round"
+                            style={{ pointerEvents: 'none' }} />
+                        )
+                      })}
 
                       {showIcons && hex.point_features.map((feat: ApiHexPointFeature, fi: number) => (
                         <text key={fi} x={hex.x} y={hex.y + (fi - (hex.point_features.length - 1) / 2) * 10}
