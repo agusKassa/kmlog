@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { api, type ApiCharacter } from '@/lib/api'
 import { EmptyState } from '../_components/empty-state'
+import { CreateCharacterButton } from './_components/create-character-modal'
 
 const charAccents = [
   { bg: 'from-amber-950 to-stone-900',   ring: 'text-amber-400 border-amber-500/40 bg-amber-500/10',   bar: 'bg-amber-500' },
@@ -98,20 +99,25 @@ export default async function CharactersPage() {
             <span>Personajes</span>
           </div>
 
-          <h1 className="font-display mb-4 text-[clamp(1.6rem,3.5vw,2.6rem)] font-bold leading-tight tracking-[0.06em] text-stone-50">
-            La Party
-          </h1>
-
-          <p className="font-body mb-4 text-[1rem] italic text-stone-500">
-            Los aventureros que dan forma a las crónicas de la campaña.
-          </p>
-
-          {characters && characters.length > 0 && (
-            <div className="text-[0.72rem] text-stone-600">
-              <span className="font-display text-[1.3rem] font-bold text-stone-200">{characters.length}</span>
-              {' '}personaje{characters.length !== 1 ? 's' : ''} activo{characters.length !== 1 ? 's' : ''}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="font-display mb-4 text-[clamp(1.6rem,3.5vw,2.6rem)] font-bold leading-tight tracking-[0.06em] text-stone-50">
+                La Party
+              </h1>
+              <p className="font-body mb-4 text-[1rem] italic text-stone-500">
+                Los aventureros que dan forma a las crónicas de la campaña.
+              </p>
+              {characters && characters.length > 0 && (
+                <div className="text-[0.72rem] text-stone-600">
+                  <span className="font-display text-[1.3rem] font-bold text-stone-200">{characters.length}</span>
+                  {' '}personaje{characters.length !== 1 ? 's' : ''} activo{characters.length !== 1 ? 's' : ''}
+                </div>
+              )}
             </div>
-          )}
+            <div className="shrink-0 pt-1">
+              <CreateCharacterButton />
+            </div>
+          </div>
         </div>
       </section>
 

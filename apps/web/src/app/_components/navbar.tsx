@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Scroll, Users, Map, StickyNote, Ghost } from 'lucide-react'
+import { Scroll, Users, Map, StickyNote, Ghost, Settings } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
@@ -97,18 +97,6 @@ export function Navbar() {
               )
             })}
 
-            {!loading && isGm && (
-              <Link href="/gm"
-                className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-[0.8rem] transition-colors ${
-                  pathname.startsWith('/gm')
-                    ? 'bg-red-500/10 text-red-400'
-                    : 'text-stone-600 hover:bg-stone-800/60 hover:text-red-400'
-                }`}
-              >
-                <span className="text-[0.7rem]">⚙</span>
-                GM
-              </Link>
-            )}
           </div>
 
           {/* Auth area */}
@@ -165,6 +153,16 @@ export function Navbar() {
                         >
                           <Users className="h-3.5 w-3.5 text-amber-500/70" />
                           Personajes
+                        </Link>
+                      )}
+                      {isGm && (
+                        <Link href="/gm"
+                          className={`flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] transition-colors hover:bg-[#141210] ${
+                            pathname.startsWith('/gm') ? 'text-red-400' : 'text-stone-400 hover:text-red-400'
+                          }`}
+                        >
+                          <Settings className="h-3.5 w-3.5 text-red-500/70" />
+                          Panel GM
                         </Link>
                       )}
                     </div>
