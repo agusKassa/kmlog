@@ -20,7 +20,7 @@ class LinearFeature {
 }
 const LinearFeatureSchema = SchemaFactory.createForClass(LinearFeature)
 
-@Schema({ _id: false })
+@Schema()
 class HexNote {
   @Prop({ type: Types.ObjectId, required: true }) author_id: Types.ObjectId
   @Prop({ required: true }) content: string

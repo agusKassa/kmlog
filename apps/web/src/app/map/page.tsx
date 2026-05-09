@@ -45,9 +45,11 @@ export default async function MapPage() {
 
   const map = maps[0]
 
-  const [hexes, locations] = await Promise.all([
+  const [hexes, locations, sessions, npcs] = await Promise.all([
     api.hexes.findByMap(map._id),
     api.locations.findAll(),
+    api.sessions.findAll(),
+    api.npcs.findAll(),
   ])
 
   const exploredCount = hexes?.filter(h => h.is_explored).length ?? 0
@@ -101,6 +103,8 @@ export default async function MapPage() {
         map={map}
         hexes={hexes ?? []}
         locations={locations ?? []}
+        sessions={sessions ?? []}
+        npcs={npcs ?? []}
       />
     </main>
   )

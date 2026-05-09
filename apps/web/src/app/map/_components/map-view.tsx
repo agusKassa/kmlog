@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature } from '@/lib/api'
+import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature, ApiNpc, ApiSession } from '@/lib/api'
 
 // ── Hex math (pointy-top axial grid) ─────────────────────────────────────────
 
@@ -79,6 +79,13 @@ const LOC_TYPE: Record<string, { label: string; color: string; bg: string; borde
   other:      { label: 'Otro',     color: 'text-stone-400',  bg: 'bg-stone-500/10',  border: 'border-stone-700/40' },
 }
 
+const NPC_ROLE: Record<string, { label: string; color: string }> = {
+  ally:    { label: 'Aliado',      color: 'text-green-400' },
+  enemy:   { label: 'Enemigo',     color: 'text-red-400' },
+  neutral: { label: 'Neutral',     color: 'text-stone-400' },
+  unknown: { label: 'Desconocido', color: 'text-stone-600' },
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function TypeBadge({ type }: { type: string }) {
@@ -98,56 +105,459 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ── Modal ─────────────────────────────────────────────────────────────────────
+
+function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative w-full max-w-md rounded-t-2xl border border-[#3c3330] border-b-0 bg-[#0e0c0b] shadow-[0_-20px_60px_rgba(0,0,0,0.9)] sm:rounded-xl sm:border-b sm:shadow-[0_25px_60px_rgba(0,0,0,0.8)]"
+        style={{ animation: 'fade-up 0.28s cubic-bezier(0.16,1,0.3,1) both' }}
+      >
+        {/* Drag handle (mobile) */}
+        <div className="flex justify-center pt-3 sm:hidden">
+          <div className="h-1 w-10 rounded-full bg-stone-700" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#2a2826] px-5 py-3.5">
+          <span className="font-display text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-amber-500/80">
+            {title}
+          </span>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-stone-600 transition-colors hover:bg-stone-800 hover:text-stone-300"
+          >
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-5">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+// ── Input / Textarea styles ───────────────────────────────────────────────────
+
+const inputCls = 'w-full rounded-lg border border-[#3c3330] bg-[#181412] px-3 py-2.5 text-[0.88rem] text-stone-100 placeholder-stone-700 outline-none transition-all focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/10'
+const textareaCls = 'w-full resize-none rounded-lg border border-[#3c3330] bg-[#181412] px-3 py-2.5 text-[0.88rem] text-stone-300 placeholder-stone-700 outline-none transition-all focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/10'
+const labelCls = 'mb-1.5 block text-[0.64rem] font-medium uppercase tracking-[0.14em] text-stone-600'
+
+function ModalFooter({ onClose, onConfirm, confirmLabel, disabled }: {
+  onClose: () => void
+  onConfirm: () => void
+  confirmLabel: string
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-end gap-2 border-t border-[#1e1c1a] pt-4">
+      <button
+        onClick={onClose}
+        className="px-4 py-2 text-[0.75rem] text-stone-600 transition-colors hover:text-stone-400"
+      >
+        Cancelar
+      </button>
+      <button
+        onClick={onConfirm}
+        disabled={disabled}
+        className="rounded-lg bg-amber-500 px-5 py-2 font-display text-[0.7rem] font-bold uppercase tracking-[0.14em] text-stone-950 transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {confirmLabel}
+      </button>
+    </div>
+  )
+}
+
+// ── CreateLocationModal ───────────────────────────────────────────────────────
+
+const LOC_FEAT_TYPE: Record<string, string> = {
+  city: 'city', dungeon: 'dungeon', wilderness: 'landmark',
+  building: 'landmark', region: 'landmark', other: 'other',
+}
+
+function CreateLocationModal({ hex, mapId, token, onUpdate, onAddLocation, onClose }: {
+  hex: RichHex
+  mapId: string
+  token: string | null
+  onUpdate: (h: RichHex) => void
+  onAddLocation: (l: ApiLocation) => void
+  onClose: () => void
+}) {
+  const [name, setName]   = useState('')
+  const [type, setType]   = useState('other')
+  const [desc, setDesc]   = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState<string | null>(null)
+
+  async function handleCreate() {
+    if (!name.trim() || !token) return
+    setSaving(true)
+    setError(null)
+    try {
+      const locRes = await fetch(`${API_URL}/locations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: name.trim(),
+          type,
+          public_description: desc.trim(),
+          visibility: { mode: 'public' },
+        }),
+      })
+      if (!locRes.ok) { setError('Error al crear la locación'); return }
+      const newLoc: ApiLocation = await locRes.json()
+
+      // Link to hex via point_feature
+      const updatedFeatures = [
+        ...hex.point_features,
+        { type: LOC_FEAT_TYPE[type] ?? 'other', position: 0, label: name.trim(), location_id: newLoc._id },
+      ]
+      const hexRes = await fetch(`${API_URL}/maps/${mapId}/hexes/${hex._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ point_features: updatedFeatures }),
+      })
+      if (hexRes.ok) onUpdate(await hexRes.json())
+      onAddLocation(newLoc)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="Nueva Locación" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div>
+          <label className={labelCls}>Nombre</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)}
+            placeholder="Nombre de la locación..." autoFocus className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Tipo</label>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(LOC_TYPE).map(([k, s]) => (
+              <button key={k} type="button" onClick={() => setType(k)}
+                className={`rounded-md border px-2.5 py-1 text-[0.63rem] font-medium uppercase tracking-[0.08em] transition-all ${
+                  type === k ? `${s.color} ${s.bg} ${s.border}` : 'border-[#2a2826] text-stone-600 hover:border-stone-700 hover:text-stone-400'
+                }`}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Descripción pública</label>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)}
+            placeholder="Descripción visible para los jugadores..." rows={3} className={textareaCls} />
+        </div>
+
+        {error && <p className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-[0.78rem] text-red-400">{error}</p>}
+
+        <ModalFooter onClose={onClose} onConfirm={handleCreate}
+          confirmLabel={saving ? 'Creando...' : 'Crear locación'} disabled={saving || !name.trim()} />
+      </div>
+    </Modal>
+  )
+}
+
+// ── CreateEventModal ──────────────────────────────────────────────────────────
+
+const DIFFICULTIES = ['trivial', 'low', 'moderate', 'severe', 'extreme']
+const DIFF_LABELS: Record<string, string> = { trivial: 'Trivial', low: 'Bajo', moderate: 'Moderado', severe: 'Severo', extreme: 'Extremo' }
+const EVENT_TYPES = ['exploration', 'social', 'narrative', 'rest', 'downtime']
+const EVENT_TYPE_LABELS: Record<string, string> = { exploration: 'Exploración', social: 'Social', narrative: 'Narrativo', rest: 'Descanso', downtime: 'Libre' }
+
+function CreateEventModal({ kind, sessions, token, onClose }: {
+  kind: 'encounter' | 'event'
+  sessions: ApiSession[]
+  token: string | null
+  onClose: () => void
+}) {
+  const [title, setTitle]       = useState('')
+  const [desc, setDesc]         = useState('')
+  const [difficulty, setDiff]   = useState('moderate')
+  const [eventType, setEvType]  = useState('exploration')
+  const [sessionId, setSessId]  = useState(sessions[0]?._id ?? '')
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [done, setDone]         = useState(false)
+
+  const isEncounter = kind === 'encounter'
+  const title_ = isEncounter ? 'Nuevo Encuentro' : 'Nuevo Evento'
+
+  async function handleCreate() {
+    if (!title.trim() || !sessionId || !token) return
+    setSaving(true)
+    setError(null)
+    try {
+      const body: Record<string, unknown> = { kind, title: title.trim(), description: desc.trim() }
+      if (isEncounter) body.difficulty = difficulty
+      else body.event_type = eventType
+
+      const res = await fetch(`${API_URL}/sessions/${sessionId}/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) { setError('Error al registrar el evento'); return }
+      setDone(true)
+      setTimeout(onClose, 900)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <Modal title={title_} onClose={onClose}>
+        <div className="flex flex-col items-center gap-3 py-6">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-green-500/20 bg-green-500/10">
+            <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor" className="text-green-400">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <p className="font-display text-[0.75rem] tracking-[0.12em] text-green-400">Registrado correctamente</p>
+        </div>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal title={title_} onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        {sessions.length === 0 ? (
+          <div className="rounded-lg border border-amber-500/15 bg-amber-500/5 px-4 py-3">
+            <p className="text-[0.78rem] text-amber-400/80">No hay sesiones creadas. Crea una sesión primero.</p>
+          </div>
+        ) : (
+          <div>
+            <label className={labelCls}>Sesión</label>
+            <select value={sessionId} onChange={e => setSessId(e.target.value)}
+              className="w-full rounded-lg border border-[#3c3330] bg-[#181412] px-3 py-2.5 text-[0.88rem] text-stone-200 outline-none focus:border-amber-500/40">
+              {sessions.map(s => (
+                <option key={s._id} value={s._id}>#{s.session_number} — {s.title}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className={labelCls}>Título</label>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+            placeholder={isEncounter ? 'Encuentro con...' : 'Nombre del evento...'} autoFocus className={inputCls} />
+        </div>
+
+        <div>
+          <label className={labelCls}>{isEncounter ? 'Dificultad' : 'Tipo'}</label>
+          <div className="flex flex-wrap gap-1.5">
+            {(isEncounter ? DIFFICULTIES : EVENT_TYPES).map(opt => (
+              <button key={opt} type="button"
+                onClick={() => isEncounter ? setDiff(opt) : setEvType(opt)}
+                className={`rounded-md border px-2.5 py-1 text-[0.62rem] font-medium uppercase tracking-[0.08em] transition-all ${
+                  (isEncounter ? difficulty : eventType) === opt
+                    ? 'border-amber-500/30 bg-amber-500/15 text-amber-400'
+                    : 'border-[#2a2826] text-stone-600 hover:border-stone-700 hover:text-stone-400'
+                }`}>
+                {isEncounter ? DIFF_LABELS[opt] : EVENT_TYPE_LABELS[opt]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Descripción</label>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)}
+            placeholder="Descripción del evento..." rows={3} className={textareaCls} />
+        </div>
+
+        {error && <p className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-[0.78rem] text-red-400">{error}</p>}
+
+        <ModalFooter onClose={onClose} onConfirm={handleCreate}
+          confirmLabel={saving ? 'Registrando...' : isEncounter ? 'Registrar encuentro' : 'Registrar evento'}
+          disabled={saving || !title.trim() || sessions.length === 0} />
+      </div>
+    </Modal>
+  )
+}
+
+// ── NpcMoveModal ──────────────────────────────────────────────────────────────
+
+function NpcMoveModal({ hex, npcs, locationMap, token, onClose }: {
+  hex: RichHex
+  npcs: ApiNpc[]
+  locationMap: Map<string, ApiLocation>
+  token: string | null
+  onClose: () => void
+}) {
+  const hexLocations = useMemo(
+    () => hex.location_ids.map(lid => locationMap.get(String(lid))).filter(Boolean) as ApiLocation[],
+    [hex.location_ids, locationMap]
+  )
+
+  const [selectedNpcId, setSelectedNpcId] = useState<string | null>(null)
+  const [selectedLocId, setSelectedLocId] = useState<string | null>(hexLocations[0]?._id ?? null)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+  const [done, setDone]       = useState(false)
+
+  async function handleMove() {
+    if (!selectedNpcId || !token) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_URL}/npcs/${selectedNpcId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ location_id: selectedLocId ?? null }),
+      })
+      if (!res.ok) { setError('Error al mover el NPC'); return }
+      setDone(true)
+      setTimeout(onClose, 900)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <Modal title="Mover NPC" onClose={onClose}>
+        <div className="flex flex-col items-center gap-3 py-6">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-green-500/20 bg-green-500/10">
+            <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor" className="text-green-400">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <p className="font-display text-[0.75rem] tracking-[0.12em] text-green-400">NPC movido correctamente</p>
+        </div>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal title="Mover NPC Aquí" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        {/* NPC list */}
+        <div>
+          <label className={labelCls}>Seleccionar NPC</label>
+          <div className="flex max-h-52 flex-col gap-1 overflow-y-auto rounded-lg border border-[#2a2826] bg-[#0c0a09] p-1.5">
+            {npcs.length === 0 ? (
+              <p className="px-2 py-4 text-center text-[0.78rem] italic text-stone-700">Sin NPCs creados.</p>
+            ) : npcs.map(npc => {
+              const rs = NPC_ROLE[npc.role] ?? NPC_ROLE.unknown
+              return (
+                <button key={npc._id} type="button" onClick={() => setSelectedNpcId(npc._id)}
+                  className={`flex items-center gap-3 rounded-md border px-3 py-2 text-left transition-all ${
+                    selectedNpcId === npc._id
+                      ? 'border-amber-500/30 bg-amber-500/10'
+                      : 'border-transparent hover:border-[#2a2826] hover:bg-[#141210]'
+                  }`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[0.8rem] font-medium text-stone-200 leading-tight">{npc.name}</div>
+                    <div className={`text-[0.62rem] ${rs.color}`}>
+                      {rs.label}{!npc.is_alive && ' · Muerto'}
+                    </div>
+                  </div>
+                  {selectedNpcId === npc._id && (
+                    <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" className="shrink-0 text-amber-500">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Location picker */}
+        <div>
+          <label className={labelCls}>Ubicar en</label>
+          {hexLocations.length === 0 ? (
+            <p className="rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2.5 text-[0.78rem] italic text-stone-600">
+              Este hex no tiene ubicaciones. El NPC quedará sin ubicación.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {hexLocations.map(loc => (
+                <button key={loc._id} type="button" onClick={() => setSelectedLocId(loc._id)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
+                    selectedLocId === loc._id
+                      ? 'border-amber-500/30 bg-amber-500/10'
+                      : 'border-[#2a2826] bg-[#141210] hover:border-stone-700'
+                  }`}>
+                  <span className="flex-1 text-[0.78rem] text-stone-300">{loc.name}</span>
+                  <TypeBadge type={loc.type} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && <p className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-[0.78rem] text-red-400">{error}</p>}
+
+        <ModalFooter onClose={onClose} onConfirm={handleMove}
+          confirmLabel={saving ? 'Moviendo...' : 'Mover NPC'} disabled={saving || !selectedNpcId} />
+      </div>
+    </Modal>
+  )
+}
+
 // ── HexPanel ──────────────────────────────────────────────────────────────────
 
+type ActiveModal = 'location' | 'encounter' | 'event' | 'npc-move' | null
+
 function HexPanel({
-  hex,
-  locationMap,
-  mapId,
-  token,
-  user,
-  onUpdate,
-  onClose,
+  hex, locationMap, mapId, mapData, token, user, sessions, npcs,
+  onUpdate, onUpdateMap, onAddLocation, onClose,
 }: {
   hex: RichHex
   locationMap: Map<string, ApiLocation>
   mapId: string
+  mapData: ApiGameMap
   token: string | null
   user: AuthUser | null
+  sessions: ApiSession[]
+  npcs: ApiNpc[]
   onUpdate: (updated: RichHex) => void
+  onUpdateMap: (updated: ApiGameMap) => void
+  onAddLocation: (l: ApiLocation) => void
   onClose: () => void
 }) {
-  const terrain = TERRAIN[hex.terrain] ?? TERRAIN.other
-  const isGm = user?.role === 'gm'
+  const terrain    = TERRAIN[hex.terrain] ?? TERRAIN.other
+  const isGm       = user?.role === 'gm'
   const isLoggedIn = !!token
+  const isPartyHex = mapData.current_party_hex_id === hex._id
 
-  const [saving, setSaving] = useState(false)
-  const [editingPartySummary, setEditingPartySummary] = useState(false)
-  const [partySummaryValue, setPartySummaryValue] = useState(hex.party_summary ?? '')
-  const [editingGmNotes, setEditingGmNotes] = useState(false)
-  const [gmNotesValue, setGmNotesValue] = useState(hex.gm_notes ?? '')
-  const [showNoteForm, setShowNoteForm] = useState(false)
-  const [noteContent, setNoteContent] = useState('')
-  const [notePublic, setNotePublic] = useState(false)
+  const [saving, setSaving]                   = useState(false)
+  const [savingParty, setSavingParty]         = useState(false)
+  const [editingDesc, setEditingDesc]         = useState(false)
+  const [descValue, setDescValue]             = useState(hex.party_summary ?? '')
+  const [editingGmNotes, setEditingGmNotes]   = useState(false)
+  const [gmNotesValue, setGmNotesValue]       = useState(hex.gm_notes ?? '')
+  const [showNoteForm, setShowNoteForm]       = useState(false)
+  const [noteContent, setNoteContent]         = useState('')
+  const [notePublic, setNotePublic]           = useState(false)
+  const [noteError, setNoteError]             = useState<string | null>(null)
+  const [activeModal, setActiveModal]         = useState<ActiveModal>(null)
 
-  // Sync editable values when hex changes (e.g. after external update)
   useEffect(() => {
-    setPartySummaryValue(hex.party_summary ?? '')
+    setDescValue(hex.party_summary ?? '')
     setGmNotesValue(hex.gm_notes ?? '')
   }, [hex._id, hex.party_summary, hex.gm_notes])
 
-  const authHeaders = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  }
+  const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 
   async function putHex(body: Record<string, unknown>) {
     setSaving(true)
     try {
       const res = await fetch(`${API_URL}/maps/${mapId}/hexes/${hex._id}`, {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify(body),
+        method: 'PUT', headers: authHeaders, body: JSON.stringify(body),
       })
       if (res.ok) onUpdate(await res.json())
     } finally {
@@ -155,9 +565,23 @@ function HexPanel({
     }
   }
 
-  async function savePartySummary() {
-    await putHex({ party_summary: partySummaryValue.trim() || null })
-    setEditingPartySummary(false)
+  async function handleMoveParty() {
+    if (!token || isPartyHex) return
+    setSavingParty(true)
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}`, {
+        method: 'PUT', headers: authHeaders,
+        body: JSON.stringify({ current_party_hex_id: hex._id }),
+      })
+      if (res.ok) onUpdateMap(await res.json())
+    } finally {
+      setSavingParty(false)
+    }
+  }
+
+  async function saveDesc() {
+    await putHex({ party_summary: descValue.trim() || null })
+    setEditingDesc(false)
   }
 
   async function saveGmNotes() {
@@ -168,10 +592,10 @@ function HexPanel({
   async function addNote() {
     if (!token || !noteContent.trim()) return
     setSaving(true)
+    setNoteError(null)
     try {
       const res = await fetch(`${API_URL}/maps/${mapId}/hexes/${hex._id}/notes`, {
-        method: 'POST',
-        headers: authHeaders,
+        method: 'POST', headers: authHeaders,
         body: JSON.stringify({ content: noteContent.trim(), is_public: notePublic }),
       })
       if (res.ok) {
@@ -179,7 +603,12 @@ function HexPanel({
         setNoteContent('')
         setNotePublic(false)
         setShowNoteForm(false)
+      } else {
+        const data = await res.json().catch(() => null)
+        setNoteError(Array.isArray(data?.message) ? data.message[0] : (data?.message ?? 'Error al guardar la nota'))
       }
+    } catch {
+      setNoteError('No se pudo conectar con el servidor')
     } finally {
       setSaving(false)
     }
@@ -190,8 +619,7 @@ function HexPanel({
     setSaving(true)
     try {
       const res = await fetch(`${API_URL}/maps/${mapId}/hexes/${hex._id}/notes/${noteId}`, {
-        method: 'DELETE',
-        headers: authHeaders,
+        method: 'DELETE', headers: authHeaders,
       })
       if (res.ok) onUpdate(await res.json())
     } finally {
@@ -203,32 +631,48 @@ function HexPanel({
     n => n.is_public || (user && n.author_id === user.id)
   )
 
+  // NPCs at this hex (via their location_id matching one of hex.location_ids)
+  const hexLocIds = useMemo(() => new Set(hex.location_ids.map(String)), [hex.location_ids])
+  const npcsHere  = useMemo(
+    () => npcs.filter(n => n.location_id && hexLocIds.has(n.location_id)),
+    [npcs, hexLocIds]
+  )
+
   return (
     <>
+      {/* Modals */}
+      {activeModal === 'location' && (
+        <CreateLocationModal hex={hex} mapId={mapId} token={token}
+          onUpdate={onUpdate} onAddLocation={onAddLocation} onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'encounter' && (
+        <CreateEventModal kind="encounter" sessions={sessions} token={token} onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'event' && (
+        <CreateEventModal kind="event" sessions={sessions} token={token} onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'npc-move' && (
+        <NpcMoveModal hex={hex} npcs={npcs} locationMap={locationMap} token={token} onClose={() => setActiveModal(null)} />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#2a2826] px-4 py-3">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-1.5 text-[0.72rem] text-stone-600 transition-colors hover:text-amber-400"
-        >
+        <button onClick={onClose}
+          className="flex items-center gap-1.5 text-[0.72rem] text-stone-600 transition-colors hover:text-amber-400">
           <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
           </svg>
           Volver
         </button>
-        <span className="font-display text-[0.62rem] tracking-[0.15em] text-stone-700">
-          Q:{hex.q} R:{hex.r}
-        </span>
+        <span className="font-display text-[0.62rem] tracking-[0.15em] text-stone-700">Q:{hex.q} R:{hex.r}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
 
         {/* Terrain + status badges */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span
-            className="rounded px-2.5 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.12em]"
-            style={{ background: terrain.fill, color: terrain.stroke, border: `1px solid ${terrain.stroke}` }}
-          >
+          <span className="rounded px-2.5 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.12em]"
+            style={{ background: terrain.fill, color: terrain.stroke, border: `1px solid ${terrain.stroke}` }}>
             {terrain.label}
           </span>
           <span className={`rounded border px-2 py-0.5 text-[0.62rem] uppercase tracking-[0.1em] ${
@@ -238,133 +682,160 @@ function HexPanel({
           }`}>
             {hex.is_explored ? 'Explorado' : 'Inexplorado'}
           </span>
-          {hex.region && (
-            <span className="text-[0.7rem] italic text-stone-600">{hex.region}</span>
-          )}
+          {hex.region && <span className="text-[0.7rem] italic text-stone-600">{hex.region}</span>}
         </div>
 
         {/* Toggle explored — GM only */}
         {isGm && (
-          <button
-            onClick={() => putHex({ is_explored: !hex.is_explored })}
-            disabled={saving}
+          <button onClick={() => putHex({ is_explored: !hex.is_explored })} disabled={saving}
             className={`mb-4 w-full rounded-lg border px-3 py-2 text-[0.72rem] font-medium transition-all disabled:opacity-50 ${
               hex.is_explored
                 ? 'border-stone-700/40 bg-stone-500/8 text-stone-500 hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-400'
                 : 'border-green-500/20 bg-green-500/8 text-green-400 hover:bg-green-500/12'
-            }`}
-          >
+            }`}>
             {hex.is_explored ? '✕  Marcar como inexplorado' : '✓  Marcar como explorado'}
           </button>
         )}
 
-        {/* Party summary */}
+        {/* GM Actions */}
+        {isGm && (
+          <div className="mb-4 rounded-lg border border-[#2a2826] bg-[#0c0a09] p-3">
+            <SectionLabel>Acciones</SectionLabel>
+            <div className="flex flex-col gap-1.5">
+              {/* Party row — full width */}
+              <button onClick={handleMoveParty} disabled={savingParty || isPartyHex}
+                className={`flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-[0.68rem] font-medium transition-all disabled:opacity-60 ${
+                  isPartyHex
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                    : 'border-[#2a2826] text-stone-500 hover:border-amber-500/25 hover:bg-amber-500/5 hover:text-amber-400'
+                }`}>
+                {/* Flag icon */}
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4 4v16M4 4l12 4-12 4"/>
+                  <path d="M4 4h12l-12 4" fillOpacity="0.4"/>
+                </svg>
+                {isPartyHex ? 'El grupo está aquí' : savingParty ? 'Moviendo...' : 'Mover grupo aquí'}
+              </button>
+
+              {/* 2-col grid for the rest */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { icon: '◈', label: 'Nueva locación', modal: 'location' as ActiveModal },
+                  { icon: '◉', label: 'Mover NPC aquí', modal: 'npc-move' as ActiveModal },
+                  { icon: '⚔', label: 'Encuentro',      modal: 'encounter' as ActiveModal },
+                  { icon: '✦', label: 'Evento',         modal: 'event' as ActiveModal },
+                ].map(({ icon, label, modal }) => (
+                  <button key={label} onClick={() => setActiveModal(modal)}
+                    className="flex items-center justify-center gap-1.5 rounded-md border border-[#2a2826] px-2 py-2 text-[0.65rem] font-medium text-stone-500 transition-all hover:border-amber-500/20 hover:bg-amber-500/5 hover:text-amber-400">
+                    <span>{icon}</span>
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Descripción */}
         <div className="mb-4">
           <div className="mb-1.5 flex items-center justify-between">
-            <SectionLabel>Situación del grupo</SectionLabel>
-            {isGm && !editingPartySummary && (
-              <button
-                onClick={() => setEditingPartySummary(true)}
-                className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400"
-              >
+            <SectionLabel>Descripción</SectionLabel>
+            {isGm && !editingDesc && (
+              <button onClick={() => setEditingDesc(true)}
+                className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400">
                 editar
               </button>
             )}
           </div>
-          {editingPartySummary ? (
+          {editingDesc ? (
             <div className="flex flex-col gap-2">
-              <textarea
-                value={partySummaryValue}
-                onChange={e => setPartySummaryValue(e.target.value)}
-                placeholder="Descripción visible del estado del grupo en este hex..."
-                rows={3}
-                className="w-full resize-none rounded-lg border border-[#3c3330] bg-[#141210] px-3 py-2 text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none focus:border-amber-500/40"
-              />
+              <textarea value={descValue} onChange={e => setDescValue(e.target.value)}
+                placeholder="Descripción visible del estado del grupo en este hex..." rows={3}
+                className="w-full resize-none rounded-lg border border-[#3c3330] bg-[#141210] px-3 py-2 text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none focus:border-amber-500/40" />
               <div className="flex gap-2">
-                <button
-                  onClick={savePartySummary}
-                  disabled={saving}
-                  className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1.5 text-[0.7rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-50"
-                >
+                <button onClick={saveDesc} disabled={saving}
+                  className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1.5 text-[0.7rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-50">
                   Guardar
                 </button>
-                <button
-                  onClick={() => setEditingPartySummary(false)}
-                  className="px-3 py-1.5 text-[0.7rem] text-stone-600 transition-colors hover:text-stone-400"
-                >
+                <button onClick={() => setEditingDesc(false)}
+                  className="px-3 py-1.5 text-[0.7rem] text-stone-600 transition-colors hover:text-stone-400">
                   Cancelar
                 </button>
               </div>
             </div>
           ) : hex.party_summary ? (
-            <p className="font-body text-[0.9rem] leading-relaxed text-stone-400 italic">
-              {hex.party_summary}
-            </p>
+            <p className="font-body text-[0.9rem] leading-relaxed text-stone-400 italic">{hex.party_summary}</p>
           ) : (
-            <p className="font-body text-[0.82rem] italic text-stone-700">Sin registro.</p>
+            <p className="font-body text-[0.82rem] italic text-stone-700">Sin descripción.</p>
           )}
         </div>
 
-        {/* GM notes — GM only */}
+        {/* GM notes */}
         {isGm && (
           <div className="mb-4 rounded-lg border border-amber-500/10 bg-amber-500/5 p-3">
             <div className="mb-1.5 flex items-center justify-between">
               <SectionLabel>Notas del GM</SectionLabel>
               {!editingGmNotes && (
-                <button
-                  onClick={() => setEditingGmNotes(true)}
-                  className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400"
-                >
+                <button onClick={() => setEditingGmNotes(true)}
+                  className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400">
                   editar
                 </button>
               )}
             </div>
             {editingGmNotes ? (
               <div className="flex flex-col gap-2">
-                <textarea
-                  value={gmNotesValue}
-                  onChange={e => setGmNotesValue(e.target.value)}
-                  placeholder="Notas privadas del GM para este hex..."
-                  rows={4}
-                  className="w-full resize-none rounded-lg border border-[#3c3330] bg-[#141210] px-3 py-2 text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none focus:border-amber-500/40"
-                />
+                <textarea value={gmNotesValue} onChange={e => setGmNotesValue(e.target.value)}
+                  placeholder="Notas privadas del GM para este hex..." rows={4}
+                  className="w-full resize-none rounded-lg border border-[#3c3330] bg-[#141210] px-3 py-2 text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none focus:border-amber-500/40" />
                 <div className="flex gap-2">
-                  <button
-                    onClick={saveGmNotes}
-                    disabled={saving}
-                    className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1.5 text-[0.7rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-50"
-                  >
+                  <button onClick={saveGmNotes} disabled={saving}
+                    className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1.5 text-[0.7rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-50">
                     Guardar
                   </button>
-                  <button
-                    onClick={() => setEditingGmNotes(false)}
-                    className="px-3 py-1.5 text-[0.7rem] text-stone-600 transition-colors hover:text-stone-400"
-                  >
+                  <button onClick={() => setEditingGmNotes(false)}
+                    className="px-3 py-1.5 text-[0.7rem] text-stone-600 transition-colors hover:text-stone-400">
                     Cancelar
                   </button>
                 </div>
               </div>
             ) : hex.gm_notes ? (
-              <p className="font-body text-[0.82rem] leading-relaxed text-amber-100/70 italic">
-                {hex.gm_notes}
-              </p>
+              <p className="font-body text-[0.82rem] leading-relaxed text-amber-100/70 italic">{hex.gm_notes}</p>
             ) : (
               <p className="font-body text-[0.78rem] italic text-stone-700">Sin notas del GM.</p>
             )}
           </div>
         )}
 
-        {/* Notes — any logged-in user */}
+        {/* NPCs presentes */}
+        {npcsHere.length > 0 && (
+          <div className="mb-4">
+            <SectionLabel>NPCs presentes ({npcsHere.length})</SectionLabel>
+            <div className="flex flex-col gap-1.5">
+              {npcsHere.map(npc => {
+                const rs = NPC_ROLE[npc.role] ?? NPC_ROLE.unknown
+                return (
+                  <div key={npc._id} className="flex items-center gap-2.5 rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[0.78rem] font-medium text-stone-300 leading-tight">{npc.name}</div>
+                      <div className={`text-[0.62rem] ${rs.color}`}>{rs.label}{!npc.is_alive && ' · Muerto'}</div>
+                    </div>
+                    {npc.location_id && locationMap.get(npc.location_id) && (
+                      <TypeBadge type={locationMap.get(npc.location_id)!.type} />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
         <div className="mb-4">
           <div className="mb-1.5 flex items-center justify-between">
-            <SectionLabel>
-              Notas{visibleNotes.length > 0 ? ` (${visibleNotes.length})` : ''}
-            </SectionLabel>
+            <SectionLabel>Notas{visibleNotes.length > 0 ? ` (${visibleNotes.length})` : ''}</SectionLabel>
             {isLoggedIn && !showNoteForm && (
-              <button
-                onClick={() => setShowNoteForm(true)}
-                className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400"
-              >
+              <button onClick={() => setShowNoteForm(true)}
+                className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400">
                 + agregar
               </button>
             )}
@@ -372,36 +843,25 @@ function HexPanel({
 
           {showNoteForm && (
             <div className="mb-3 rounded-lg border border-[#2a2826] bg-[#141210] p-3">
-              <textarea
-                value={noteContent}
-                onChange={e => setNoteContent(e.target.value)}
-                placeholder="Escribí tu nota para este hexágono..."
-                rows={3}
-                autoFocus
-                className="mb-2 w-full resize-none bg-transparent text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none"
-              />
+              <textarea value={noteContent} onChange={e => setNoteContent(e.target.value)}
+                placeholder="Escribí tu nota para este hexágono..." rows={3} autoFocus
+                className="mb-2 w-full resize-none bg-transparent text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none" />
+              {noteError && (
+                <p className="mb-2 text-[0.72rem] text-red-400">{noteError}</p>
+              )}
               <div className="flex items-center justify-between">
                 <label className="flex cursor-pointer items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    checked={notePublic}
-                    onChange={e => setNotePublic(e.target.checked)}
-                    className="h-3 w-3 accent-amber-500"
-                  />
+                  <input type="checkbox" checked={notePublic} onChange={e => setNotePublic(e.target.checked)}
+                    className="h-3 w-3 accent-amber-500" />
                   <span className="text-[0.65rem] text-stone-600">Visible para todos</span>
                 </label>
                 <div className="flex gap-2">
-                  <button
-                    onClick={addNote}
-                    disabled={saving || !noteContent.trim()}
-                    className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1 text-[0.68rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40"
-                  >
+                  <button onClick={addNote} disabled={saving || !noteContent.trim()}
+                    className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1 text-[0.68rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40">
                     Guardar
                   </button>
-                  <button
-                    onClick={() => { setShowNoteForm(false); setNoteContent('') }}
-                    className="text-[0.68rem] text-stone-700 transition-colors hover:text-stone-400"
-                  >
+                  <button onClick={() => { setShowNoteForm(false); setNoteContent(''); setNoteError(null) }}
+                    className="text-[0.68rem] text-stone-700 transition-colors hover:text-stone-400">
                     Cancelar
                   </button>
                 </div>
@@ -412,7 +872,7 @@ function HexPanel({
           {visibleNotes.length > 0 ? (
             <div className="flex flex-col gap-2">
               {visibleNotes.map(note => (
-                <div key={note._id} className="group rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2.5">
+                <div key={note._id ?? note.content} className="group rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2.5">
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className={`rounded border px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.08em] ${
                       note.is_public
@@ -421,19 +881,14 @@ function HexPanel({
                     }`}>
                       {note.is_public ? 'Pública' : 'Privada'}
                     </span>
-                    {(isGm || (user && note.author_id === user.id)) && (
-                      <button
-                        onClick={() => deleteNote(note._id)}
-                        disabled={saving}
-                        className="hidden text-[0.6rem] text-stone-700 transition-colors hover:text-red-400 group-hover:block disabled:opacity-50"
-                      >
+                    {(isGm || (user && note.author_id === user.id)) && note._id && (
+                      <button onClick={() => deleteNote(note._id)} disabled={saving}
+                        className="hidden text-[0.6rem] text-stone-700 transition-colors hover:text-red-400 group-hover:block disabled:opacity-50">
                         eliminar
                       </button>
                     )}
                   </div>
-                  <p className="font-body text-[0.82rem] leading-relaxed text-stone-400">
-                    {note.content}
-                  </p>
+                  <p className="font-body text-[0.82rem] leading-relaxed text-stone-400">{note.content}</p>
                 </div>
               ))}
             </div>
@@ -456,10 +911,8 @@ function HexPanel({
                       <div className="truncate text-[0.75rem] font-medium text-stone-300">
                         {linkedLoc?.name ?? feat.label ?? feat.type}
                       </div>
-                      {linkedLoc && (
-                        <div className="truncate text-[0.62rem] text-stone-600">
-                          {linkedLoc.public_description || '—'}
-                        </div>
+                      {linkedLoc?.public_description && (
+                        <div className="truncate text-[0.62rem] text-stone-600">{linkedLoc.public_description}</div>
                       )}
                     </div>
                     {linkedLoc && <TypeBadge type={linkedLoc.type} />}
@@ -476,10 +929,10 @@ function HexPanel({
             <SectionLabel>Ubicaciones ({hex.location_ids.length})</SectionLabel>
             <div className="flex flex-col gap-1.5">
               {hex.location_ids.map(lid => {
-                const loc = locationMap.get(lid)
+                const loc = locationMap.get(String(lid))
                 if (!loc) return null
                 return (
-                  <div key={lid} className="flex items-start gap-2.5 rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2">
+                  <div key={String(lid)} className="flex items-start gap-2.5 rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <div className="mb-0.5 flex items-baseline gap-2">
                         <span className="text-[0.78rem] font-medium text-stone-200">{loc.name}</span>
@@ -504,11 +957,9 @@ function HexPanel({
             <SectionLabel>Sesiones ({hex.session_ids.length})</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
               {hex.session_ids.map(sid => (
-                <span
-                  key={sid}
-                  className="rounded border border-[#2a2826] bg-[#141210] px-2 py-0.5 font-display text-[0.62rem] tracking-[0.08em] text-stone-600"
-                >
-                  #{sid.slice(-4)}
+                <span key={String(sid)}
+                  className="rounded border border-[#2a2826] bg-[#141210] px-2 py-0.5 font-display text-[0.62rem] tracking-[0.08em] text-stone-600">
+                  #{String(sid).slice(-4)}
                 </span>
               ))}
             </div>
@@ -521,11 +972,7 @@ function HexPanel({
 
 // ── LocationPanel ─────────────────────────────────────────────────────────────
 
-function LocationPanel({
-  locations,
-  filterType,
-  onFilterChange,
-}: {
+function LocationPanel({ locations, filterType, onFilterChange }: {
   locations: ApiLocation[]
   filterType: string | null
   onFilterChange: (t: string | null) => void
@@ -546,24 +993,19 @@ function LocationPanel({
         </div>
         {types.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1">
-            <button
-              onClick={() => onFilterChange(null)}
+            <button onClick={() => onFilterChange(null)}
               className={`rounded px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.08em] transition-colors ${
                 !filterType ? 'bg-amber-500/15 text-amber-400' : 'text-stone-600 hover:text-stone-400'
-              }`}
-            >
+              }`}>
               Todos
             </button>
             {types.map(t => {
               const s = LOC_TYPE[t] ?? LOC_TYPE.other
               return (
-                <button
-                  key={t}
-                  onClick={() => onFilterChange(filterType === t ? null : t)}
+                <button key={t} onClick={() => onFilterChange(filterType === t ? null : t)}
                   className={`rounded px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.08em] transition-colors ${
                     filterType === t ? `${s.color} ${s.bg}` : 'text-stone-600 hover:text-stone-400'
-                  }`}
-                >
+                  }`}>
                   {s.label}
                 </button>
               )
@@ -583,11 +1025,8 @@ function LocationPanel({
         ) : (
           <div className="divide-y divide-[#1e1c1a]">
             {filtered.map((loc, i) => (
-              <div
-                key={loc._id}
-                className="px-4 py-3 transition-colors hover:bg-[#141210]"
-                style={{ animation: `fade-in-left 0.3s ease both ${i * 0.04}s` }}
-              >
+              <div key={loc._id} className="px-4 py-3 transition-colors hover:bg-[#141210]"
+                style={{ animation: `fade-in-left 0.3s ease both ${i * 0.04}s` }}>
                 <div className="mb-1 flex items-start justify-between gap-2">
                   <span className="font-display text-[0.8rem] font-semibold leading-snug tracking-[0.04em] text-stone-200">
                     {loc.name}
@@ -613,12 +1052,9 @@ function LocationPanel({
 function MapLegend({ hexes }: { hexes: RichHex[] }) {
   const terrainTypes = [...new Set(hexes.map(h => h.terrain))].sort()
   if (terrainTypes.length === 0) return null
-
   return (
     <div className="shrink-0 border-t border-[#2a2826] px-4 py-3">
-      <div className="mb-2 text-[0.58rem] font-semibold uppercase tracking-[0.2em] text-stone-700">
-        Leyenda
-      </div>
+      <div className="mb-2 text-[0.58rem] font-semibold uppercase tracking-[0.2em] text-stone-700">Leyenda</div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
         {terrainTypes.map(t => {
           const s = TERRAIN[t] ?? TERRAIN.other
@@ -640,20 +1076,24 @@ type Props = {
   map: ApiGameMap
   hexes: ApiHex[]
   locations: ApiLocation[]
+  sessions?: ApiSession[]
+  npcs?: ApiNpc[]
 }
 
 type ViewState = { pan: { x: number; y: number }; zoom: number }
 
-export function MapView({ map, hexes, locations }: Props) {
+export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const [localHexes, setLocalHexes] = useState<RichHex[]>(hexes as RichHex[])
+  const [localHexes, setLocalHexes]       = useState<RichHex[]>(hexes as RichHex[])
+  const [localMap, setLocalMap]           = useState<ApiGameMap>(map)
+  const [localLocations, setLocalLocations] = useState<ApiLocation[]>(locations)
   const [selectedHexId, setSelectedHexId] = useState<string | null>(null)
-  const [hoveredHexId, setHoveredHexId] = useState<string | null>(null)
-  const [filterType, setFilterType] = useState<string | null>(null)
-  const [view, setView] = useState<ViewState>({ pan: { x: 0, y: 0 }, zoom: 1 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [token, setToken] = useState<string | null>(null)
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [hoveredHexId, setHoveredHexId]   = useState<string | null>(null)
+  const [filterType, setFilterType]       = useState<string | null>(null)
+  const [view, setView]                   = useState<ViewState>({ pan: { x: 0, y: 0 }, zoom: 1 })
+  const [isDragging, setIsDragging]       = useState(false)
+  const [token, setToken]                 = useState<string | null>(null)
+  const [user, setUser]                   = useState<AuthUser | null>(null)
 
   const dragRef = useRef({ active: false, startX: 0, startY: 0, panX: 0, panY: 0, moved: false })
 
@@ -664,8 +1104,8 @@ export function MapView({ map, hexes, locations }: Props) {
   }, [])
 
   const locationMap = useMemo(
-    () => new Map(locations.map(l => [l._id, l])),
-    [locations]
+    () => new Map(localLocations.map(l => [l._id, l])),
+    [localLocations]
   )
 
   const selectedHex = useMemo(
@@ -692,9 +1132,13 @@ export function MapView({ map, hexes, locations }: Props) {
     setLocalHexes(prev => prev.map(h => h._id === updated._id ? updated : h))
   }, [])
 
-  // Keep refs so the non-passive wheel handler always sees current values
-  const viewRef = useRef(view)
-  const initRef = useRef({ initTx: 0, initTy: 0 })
+  const handleAddLocation = useCallback((loc: ApiLocation) => {
+    setLocalLocations(prev => [...prev, loc])
+  }, [])
+
+  // Non-passive wheel handler via refs
+  const viewRef  = useRef(view)
+  const initRef  = useRef({ initTx: 0, initTy: 0 })
   useEffect(() => { viewRef.current = view }, [view])
   useEffect(() => { initRef.current = { initTx, initTy } }, [initTx, initTy])
 
@@ -722,17 +1166,11 @@ export function MapView({ map, hexes, locations }: Props) {
     }
     svgEl.addEventListener('wheel', onWheel, { passive: false })
     return () => svgEl.removeEventListener('wheel', onWheel)
-  }, []) // empty deps — handler reads from refs
+  }, [])
 
   const handlePointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
-    dragRef.current = {
-      active: true,
-      startX: e.clientX,
-      startY: e.clientY,
-      panX: view.pan.x,
-      panY: view.pan.y,
-      moved: false,
-    }
+    dragRef.current = { active: true, startX: e.clientX, startY: e.clientY,
+      panX: view.pan.x, panY: view.pan.y, moved: false }
     setIsDragging(true)
     setHoveredHexId(null)
     ;(e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId)
@@ -747,19 +1185,16 @@ export function MapView({ map, hexes, locations }: Props) {
     setView(v => ({ ...v, pan: { x: d.panX + dx, y: d.panY + dy } }))
   }, [])
 
-  // Click detection in pointerUp to avoid setPointerCapture breaking child onClick
   const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     const d = dragRef.current
     d.active = false
     setIsDragging(false)
-
     if (!d.moved) {
       const svgEl = svgRef.current
       if (!svgEl) return
       const rect = svgEl.getBoundingClientRect()
       const worldX = (e.clientX - rect.left - initTx - view.pan.x) / view.zoom
-      const worldY = (e.clientY - rect.top - initTy - view.pan.y) / view.zoom
-
+      const worldY = (e.clientY - rect.top  - initTy - view.pan.y) / view.zoom
       let closestId: string | null = null
       let minDist = HEX_R * 1.2
       for (const h of hexData) {
@@ -770,7 +1205,7 @@ export function MapView({ map, hexes, locations }: Props) {
     }
   }, [initTx, initTy, view.pan, view.zoom, hexData])
 
-  // Render hovered hex last so it appears on top of neighbors
+  // Hovered hex renders last (on top)
   const sortedHexData = useMemo(() => {
     if (!hoveredHexId) return hexData
     const idx = hexData.findIndex(h => h._id === hoveredHexId)
@@ -780,9 +1215,7 @@ export function MapView({ map, hexes, locations }: Props) {
     return result
   }, [hexData, hoveredHexId])
 
-  const resetView = useCallback(() => {
-    setView({ pan: { x: 0, y: 0 }, zoom: 1 })
-  }, [])
+  const resetView = useCallback(() => setView({ pan: { x: 0, y: 0 }, zoom: 1 }), [])
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -792,12 +1225,8 @@ export function MapView({ map, hexes, locations }: Props) {
           <div className="flex h-full items-center justify-center">
             <div className="text-center" style={{ animation: 'fade-up 0.5s ease both' }}>
               <div className="mb-3 text-5xl opacity-15">🗺️</div>
-              <div className="font-display text-[0.82rem] font-semibold tracking-[0.1em] text-stone-600">
-                Sin hexágonos cargados
-              </div>
-              <p className="font-body mt-1.5 max-w-xs text-[0.85rem] italic text-stone-700">
-                El GM aún no ha configurado el mapa hexagonal.
-              </p>
+              <div className="font-display text-[0.82rem] font-semibold tracking-[0.1em] text-stone-600">Sin hexágonos cargados</div>
+              <p className="font-body mt-1.5 max-w-xs text-[0.85rem] italic text-stone-700">El GM aún no ha configurado el mapa hexagonal.</p>
             </div>
           </div>
         ) : (
@@ -809,11 +1238,8 @@ export function MapView({ map, hexes, locations }: Props) {
                 { lbl: '⌂', fn: resetView },
                 { lbl: '−', fn: () => setView(v => ({ ...v, zoom: Math.max(0.2, v.zoom * 0.8) })) },
               ].map(({ lbl, fn }) => (
-                <button
-                  key={lbl}
-                  onClick={fn}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#3c3330] bg-[#181412]/90 font-display text-sm text-stone-500 backdrop-blur-sm transition-all hover:border-amber-500/30 hover:text-amber-400"
-                >
+                <button key={lbl} onClick={fn}
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#3c3330] bg-[#181412]/90 font-display text-sm text-stone-500 backdrop-blur-sm transition-all hover:border-amber-500/30 hover:text-amber-400">
                   {lbl}
                 </button>
               ))}
@@ -821,41 +1247,38 @@ export function MapView({ map, hexes, locations }: Props) {
 
             {/* Scale indicator */}
             <div className="absolute bottom-3 left-3 z-10 flex items-center gap-2 rounded-md border border-[#2a2826] bg-[#0e0c0b]/80 px-2.5 py-1.5 backdrop-blur-sm">
-              <span className="font-display text-[0.58rem] tracking-[0.12em] text-stone-700">
-                {Math.round(view.zoom * 100)}%
-              </span>
+              <span className="font-display text-[0.58rem] tracking-[0.12em] text-stone-700">{Math.round(view.zoom * 100)}%</span>
               <span className="text-[#2a2826]">·</span>
-              <span className="font-display text-[0.58rem] tracking-[0.1em] text-stone-700">
-                {map.hex_config.hex_size_miles} mi/hex
-              </span>
+              <span className="font-display text-[0.58rem] tracking-[0.1em] text-stone-700">{map.hex_config.hex_size_miles} mi/hex</span>
             </div>
 
-            {/* Party dot legend */}
-            {map.current_party_hex_id && (
+            {/* Party indicator */}
+            {localMap.current_party_hex_id && (
               <div className="absolute bottom-3 right-4 z-10 flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-1.5">
                 <div className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
-                <span className="text-[0.6rem] uppercase tracking-[0.1em] text-amber-500/80">Party</span>
+                <span className="text-[0.6rem] uppercase tracking-[0.1em] text-amber-500/80">Grupo</span>
               </div>
             )}
 
-            <svg
-              ref={svgRef}
-              className="h-full w-full"
+            <svg ref={svgRef} className="h-full w-full"
               style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-            >
+              onPointerUp={handlePointerUp}>
               <defs>
                 <pattern id="mapgrid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
                   <rect width="32" height="32" fill="#0a0806" />
-                  <circle cx="0" cy="0" r="0.6" fill="#141210" />
-                  <circle cx="32" cy="0" r="0.6" fill="#141210" />
-                  <circle cx="0" cy="32" r="0.6" fill="#141210" />
+                  <circle cx="0"  cy="0"  r="0.6" fill="#141210" />
+                  <circle cx="32" cy="0"  r="0.6" fill="#141210" />
+                  <circle cx="0"  cy="32" r="0.6" fill="#141210" />
                   <circle cx="32" cy="32" r="0.6" fill="#141210" />
                 </pattern>
                 <filter id="hexglow">
                   <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <filter id="flagglow">
+                  <feGaussianBlur stdDeviation="2.5" result="blur" />
                   <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
               </defs>
@@ -863,90 +1286,72 @@ export function MapView({ map, hexes, locations }: Props) {
 
               <g transform={`translate(${initTx + view.pan.x},${initTy + view.pan.y}) scale(${view.zoom})`}>
                 {sortedHexData.map(hex => {
-                  const t = TERRAIN[hex.terrain] ?? TERRAIN.other
+                  const t        = TERRAIN[hex.terrain] ?? TERRAIN.other
                   const isSelected = hex._id === selectedHexId
-                  const isHovered = hex._id === hoveredHexId
-                  const isParty = hex._id === map.current_party_hex_id
-                  const inner = hexPoints(hex.x, hex.y, HEX_R - 1.2)
+                  const isHovered  = hex._id === hoveredHexId
+                  const isParty    = hex._id === localMap.current_party_hex_id
+                  const inner    = hexPoints(hex.x, hex.y, HEX_R - 1.2)
 
                   return (
-                    <g
-                      key={hex._id}
+                    <g key={hex._id}
                       onPointerEnter={() => { if (!isDragging) setHoveredHexId(hex._id) }}
                       onPointerLeave={() => setHoveredHexId(null)}
                       style={{
                         cursor: 'pointer',
-                        transformBox: 'fill-box' as React.CSSProperties['transformBox'],
+                        transformBox:    'fill-box' as React.CSSProperties['transformBox'],
                         transformOrigin: 'center',
-                        transform: isHovered ? 'scale(1.14)' : 'scale(1)',
-                        transition: 'transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        transform:   isHovered ? 'scale(1.14)' : 'scale(1)',
+                        transition:  'transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)',
                         filter: isHovered
                           ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.8)) drop-shadow(0 0 6px rgba(245,158,11,0.15))'
                           : 'none',
-                      }}
-                    >
-                      <polygon
-                        points={inner}
+                      }}>
+                      <polygon points={inner}
                         fill={hex.is_explored ? t.fill : '#0c0a08'}
                         stroke={isSelected ? '#f59e0b' : t.stroke}
-                        strokeWidth={isSelected ? 1.8 : 0.7}
-                      />
+                        strokeWidth={isSelected ? 1.8 : 0.7} />
 
                       {!hex.is_explored && (
-                        <polygon
-                          points={inner}
-                          fill="rgba(0,0,0,0.55)"
-                          stroke={t.stroke}
-                          strokeWidth={0.5}
-                          strokeDasharray="4 4"
-                        />
+                        <polygon points={inner} fill="rgba(0,0,0,0.55)"
+                          stroke={t.stroke} strokeWidth={0.5} strokeDasharray="4 4" />
                       )}
 
                       {isSelected && (
-                        <polygon
-                          points={inner}
-                          fill="rgba(245,158,11,0.10)"
-                          stroke="#f59e0b"
-                          strokeWidth={1.8}
-                          filter="url(#hexglow)"
-                        />
+                        <polygon points={inner} fill="rgba(245,158,11,0.10)"
+                          stroke="#f59e0b" strokeWidth={1.8} filter="url(#hexglow)" />
                       )}
 
                       {hex.point_features.map((feat: ApiHexPointFeature, fi: number) => (
-                        <text
-                          key={fi}
-                          x={hex.x}
-                          y={hex.y + (fi - (hex.point_features.length - 1) / 2) * 10}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
+                        <text key={fi} x={hex.x} y={hex.y + (fi - (hex.point_features.length - 1) / 2) * 10}
+                          textAnchor="middle" dominantBaseline="middle"
                           fontSize={feat.location_id ? 9 : 7}
                           fill={feat.location_id ? '#f59e0b' : '#5a5250'}
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}
-                        >
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
                           {FEAT_ICON[feat.type] ?? '•'}
                         </text>
                       ))}
 
+                      {/* Party flag */}
                       {isParty && (
-                        <circle
-                          cx={hex.x}
-                          cy={hex.y + HEX_R - 10}
-                          r={4}
-                          fill="#f59e0b"
-                          stroke="#0c0a09"
-                          strokeWidth={1.5}
-                        />
+                        <g style={{ pointerEvents: 'none' }}>
+                          {/* Pole */}
+                          <line x1={hex.x} y1={hex.y - HEX_R * 0.72}
+                            x2={hex.x} y2={hex.y + HEX_R * 0.32}
+                            stroke="#f59e0b" strokeWidth="1.4" opacity="0.95" />
+                          {/* Flag triangle */}
+                          <polygon
+                            points={`${hex.x},${hex.y - HEX_R * 0.72} ${hex.x + 13},${hex.y - HEX_R * 0.46} ${hex.x},${hex.y - HEX_R * 0.2}`}
+                            fill="#f59e0b" opacity="0.9" filter="url(#flagglow)" />
+                          {/* Base dot */}
+                          <circle cx={hex.x} cy={hex.y + HEX_R * 0.32}
+                            r={2.2} fill="#f59e0b" opacity="0.8" />
+                        </g>
                       )}
 
                       {isSelected && hex.region && (
-                        <text
-                          x={hex.x}
-                          y={hex.y + HEX_R + 10}
-                          textAnchor="middle"
-                          fontSize={7}
-                          fill="#a8a29e"
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}
-                        >
+                        <text x={hex.x} y={hex.y + HEX_R + 10}
+                          textAnchor="middle" fontSize={7} fill="#a8a29e"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
                           {hex.region}
                         </text>
                       )}
@@ -965,15 +1370,20 @@ export function MapView({ map, hexes, locations }: Props) {
           <HexPanel
             hex={selectedHex}
             locationMap={locationMap}
-            mapId={map._id}
+            mapId={localMap._id}
+            mapData={localMap}
             token={token}
             user={user}
+            sessions={sessions}
+            npcs={npcs}
             onUpdate={handleHexUpdate}
+            onUpdateMap={setLocalMap}
+            onAddLocation={handleAddLocation}
             onClose={() => setSelectedHexId(null)}
           />
         ) : (
           <LocationPanel
-            locations={locations}
+            locations={localLocations}
             filterType={filterType}
             onFilterChange={setFilterType}
           />
