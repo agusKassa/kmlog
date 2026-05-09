@@ -648,6 +648,7 @@ export function MapView({ map, hexes, locations }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [localHexes, setLocalHexes] = useState<RichHex[]>(hexes as RichHex[])
   const [selectedHexId, setSelectedHexId] = useState<string | null>(null)
+  const [hoveredHexId, setHoveredHexId] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<string | null>(null)
   const [view, setView] = useState<ViewState>({ pan: { x: 0, y: 0 }, zoom: 1 })
   const [isDragging, setIsDragging] = useState(false)
@@ -701,6 +702,7 @@ export function MapView({ map, hexes, locations }: Props) {
       moved: false,
     }
     setIsDragging(true)
+    setHoveredHexId(null)
     ;(e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId)
   }, [view.pan])
 
@@ -713,10 +715,28 @@ export function MapView({ map, hexes, locations }: Props) {
     setView(v => ({ ...v, pan: { x: d.panX + dx, y: d.panY + dy } }))
   }, [])
 
-  const handlePointerUp = useCallback(() => {
-    dragRef.current.active = false
+  // Click detection in pointerUp to avoid setPointerCapture breaking child onClick
+  const handlePointerUp = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    const d = dragRef.current
+    d.active = false
     setIsDragging(false)
-  }, [])
+
+    if (!d.moved) {
+      const svgEl = svgRef.current
+      if (!svgEl) return
+      const rect = svgEl.getBoundingClientRect()
+      const worldX = (e.clientX - rect.left - initTx - view.pan.x) / view.zoom
+      const worldY = (e.clientY - rect.top - initTy - view.pan.y) / view.zoom
+
+      let closestId: string | null = null
+      let minDist = HEX_R * 1.2
+      for (const h of hexData) {
+        const dist = Math.hypot(h.x - worldX, h.y - worldY)
+        if (dist < minDist) { minDist = dist; closestId = h._id }
+      }
+      if (closestId) setSelectedHexId(prev => prev === closestId ? null : closestId)
+    }
+  }, [initTx, initTy, view.pan, view.zoom, hexData])
 
   const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault()
@@ -740,10 +760,15 @@ export function MapView({ map, hexes, locations }: Props) {
     })
   }, [initTx, initTy])
 
-  const handleHexClick = useCallback((hexId: string) => {
-    if (dragRef.current.moved) return
-    setSelectedHexId(prev => (prev === hexId ? null : hexId))
-  }, [])
+  // Render hovered hex last so it appears on top of neighbors
+  const sortedHexData = useMemo(() => {
+    if (!hoveredHexId) return hexData
+    const idx = hexData.findIndex(h => h._id === hoveredHexId)
+    if (idx === -1) return hexData
+    const result = [...hexData]
+    result.push(...result.splice(idx, 1))
+    return result
+  }, [hexData, hoveredHexId])
 
   const resetView = useCallback(() => {
     setView({ pan: { x: 0, y: 0 }, zoom: 1 })
@@ -828,14 +853,29 @@ export function MapView({ map, hexes, locations }: Props) {
               <rect width="100%" height="100%" fill="url(#mapgrid)" />
 
               <g transform={`translate(${initTx + view.pan.x},${initTy + view.pan.y}) scale(${view.zoom})`}>
-                {hexData.map(hex => {
+                {sortedHexData.map(hex => {
                   const t = TERRAIN[hex.terrain] ?? TERRAIN.other
                   const isSelected = hex._id === selectedHexId
+                  const isHovered = hex._id === hoveredHexId
                   const isParty = hex._id === map.current_party_hex_id
                   const inner = hexPoints(hex.x, hex.y, HEX_R - 1.2)
 
                   return (
-                    <g key={hex._id} onClick={() => handleHexClick(hex._id)} style={{ cursor: 'pointer' }}>
+                    <g
+                      key={hex._id}
+                      onPointerEnter={() => { if (!isDragging) setHoveredHexId(hex._id) }}
+                      onPointerLeave={() => setHoveredHexId(null)}
+                      style={{
+                        cursor: 'pointer',
+                        transformBox: 'fill-box' as React.CSSProperties['transformBox'],
+                        transformOrigin: 'center',
+                        transform: isHovered ? 'scale(1.14)' : 'scale(1)',
+                        transition: 'transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        filter: isHovered
+                          ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.8)) drop-shadow(0 0 6px rgba(245,158,11,0.15))'
+                          : 'none',
+                      }}
+                    >
                       <polygon
                         points={inner}
                         fill={hex.is_explored ? t.fill : '#0c0a08'}
