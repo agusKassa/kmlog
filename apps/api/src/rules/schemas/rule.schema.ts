@@ -17,7 +17,7 @@ export class Rule {
   @Prop({ type: [String], default: [] })
   tags: string[]
 
-  @Prop({ trim: true, default: null })
+  @Prop({ type: String, trim: true, default: null })
   source: string | null
 
   @Prop({ default: true })

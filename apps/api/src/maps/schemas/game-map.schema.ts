@@ -25,7 +25,7 @@ export class GameMap {
   @Prop({ type: Types.ObjectId, ref: 'Hex', default: null })
   current_party_hex_id: Types.ObjectId | null
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   reference_image_url: string | null
 
   @Prop({ default: false })

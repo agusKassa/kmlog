@@ -21,7 +21,7 @@ export class User {
   @Prop({ type: Types.ObjectId, ref: 'Character', default: null })
   character_id: Types.ObjectId | null
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   refresh_token_hash: string | null
 }
 

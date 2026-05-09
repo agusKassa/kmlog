@@ -5,8 +5,13 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
+import { memoryStorage } from 'multer'
 import { CharactersService } from './characters.service'
 import { ImportByIdDto, ImportByJsonDto } from './dto/import-character.dto'
 import { UpdateCharacterDto, UpdateGmNotesDto } from './dto/update-character.dto'
@@ -56,6 +61,18 @@ export class CharactersController {
     @Body() dto: UpdateCharacterDto,
   ) {
     return this.charactersService.update(id, String(user._id), user.role === 'gm', dto)
+  }
+
+  @Post(':id/portrait')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  uploadPortrait(
+    @Param('id') id: string,
+    @CurrentUser() user: UserDocument,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No file provided')
+    return this.charactersService.updatePortrait(id, String(user._id), user.role === 'gm', file.buffer)
   }
 
   // ── GM only ───────────────────────────────────────────────────────────────

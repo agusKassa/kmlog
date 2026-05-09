@@ -8,7 +8,7 @@ export type HexDocument = HydratedDocument<Hex>
 class PointFeature {
   @Prop({ required: true }) type: HexFeatureType
   @Prop({ required: true }) position: number  // HexPoint 0-6
-  @Prop({ default: null }) label: string | null
+  @Prop({ type: String, default: null }) label: string | null
   @Prop({ type: Types.ObjectId, ref: 'Location', default: null }) location_id: Types.ObjectId | null
 }
 const PointFeatureSchema = SchemaFactory.createForClass(PointFeature)
@@ -40,7 +40,7 @@ export class Hex {
   @Prop({ required: true })
   terrain: TerrainType
 
-  @Prop({ trim: true, default: null })
+  @Prop({ type: String, trim: true, default: null })
   region: string | null
 
   @Prop({ default: false })
@@ -52,10 +52,10 @@ export class Hex {
   @Prop({ type: [LinearFeatureSchema], default: [] })
   linear_features: LinearFeature[]
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   party_summary: string | null
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   gm_notes: string | null
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Session' }], default: [] })

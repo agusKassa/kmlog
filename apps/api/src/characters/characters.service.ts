@@ -9,6 +9,7 @@ import { Model } from 'mongoose'
 import type { PathbuilderBuild } from '@kmlog/types'
 import { Character, CharacterDocument } from './schemas/character.schema'
 import { UsersService } from '../users/users.service'
+import { CloudinaryService } from '../cloudinary/cloudinary.service'
 import { ImportByIdDto, ImportByJsonDto } from './dto/import-character.dto'
 import { UpdateCharacterDto, UpdateGmNotesDto } from './dto/update-character.dto'
 
@@ -24,6 +25,7 @@ export class CharactersService {
   constructor(
     @InjectModel(Character.name) private characterModel: Model<CharacterDocument>,
     private usersService: UsersService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async findAll(): Promise<CharacterDocument[]> {
@@ -76,6 +78,27 @@ export class CharactersService {
       .exec()
 
     return updated!
+  }
+
+  async updatePortrait(
+    id: string,
+    requesterId: string,
+    isGm: boolean,
+    buffer: Buffer,
+  ): Promise<CharacterDocument> {
+    const character = await this.characterModel.findById(id).exec()
+    if (!character) throw new NotFoundException('Character not found')
+    if (!isGm && String(character.user_id) !== requesterId) throw new ForbiddenException()
+
+    if (character.portrait_url) {
+      await this.cloudinaryService.deleteByUrl(character.portrait_url).catch(() => null)
+    }
+
+    const portrait_url = await this.cloudinaryService.uploadBuffer(buffer, 'kmlog/portraits')
+
+    return this.characterModel
+      .findByIdAndUpdate(id, { portrait_url }, { new: true, projection: { gm_notes: 0 } })
+      .exec() as Promise<CharacterDocument>
   }
 
   async updateGmNotes(id: string, dto: UpdateGmNotesDto): Promise<CharacterDocument> {
