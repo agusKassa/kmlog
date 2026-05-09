@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature } from '@/lib/api'
 
 // ── Hex math (pointy-top axial grid) ─────────────────────────────────────────
 
 const SQRT3 = Math.sqrt(3)
-const HEX_R = 32  // center-to-vertex radius in SVG units
+const HEX_R = 32
 
 function axialToPixel(q: number, r: number) {
   return {
@@ -21,6 +21,32 @@ function hexPoints(cx: number, cy: number, radius: number): string {
     return `${cx + radius * Math.cos(a)},${cy + radius * Math.sin(a)}`
   }).join(' ')
 }
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+interface HexNote {
+  _id: string
+  author_id: string
+  content: string
+  is_public: boolean
+  created_at: string
+}
+
+type RichHex = ApiHex & { gm_notes?: string | null; notes?: HexNote[] }
+
+type AuthUser = { id: string; role: 'gm' | 'player' }
+
+function getUserFromToken(token: string | null): AuthUser | null {
+  if (!token) return null
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return { id: payload.sub, role: payload.role }
+  } catch {
+    return null
+  }
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
 
 // ── Design constants ──────────────────────────────────────────────────────────
 
@@ -47,20 +73,10 @@ const FEAT_ICON: Record<string, string> = {
 const LOC_TYPE: Record<string, { label: string; color: string; bg: string; border: string }> = {
   city:       { label: 'Ciudad',   color: 'text-amber-400',  bg: 'bg-amber-500/10',  border: 'border-amber-500/20' },
   dungeon:    { label: 'Mazmorra', color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20' },
-  wilderness: { label: 'Yerma',   color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20' },
+  wilderness: { label: 'Yerma',    color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20' },
   building:   { label: 'Edificio', color: 'text-sky-400',    bg: 'bg-sky-500/10',    border: 'border-sky-500/20' },
   region:     { label: 'Región',   color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
   other:      { label: 'Otro',     color: 'text-stone-400',  bg: 'bg-stone-500/10',  border: 'border-stone-700/40' },
-}
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type ViewState = { pan: { x: number; y: number }; zoom: number }
-
-type Props = {
-  map: ApiGameMap
-  hexes: ApiHex[]
-  locations: ApiLocation[]
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -82,19 +98,114 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ── HexPanel ──────────────────────────────────────────────────────────────────
+
 function HexPanel({
   hex,
   locationMap,
+  mapId,
+  token,
+  user,
+  onUpdate,
   onClose,
 }: {
-  hex: ApiHex
+  hex: RichHex
   locationMap: Map<string, ApiLocation>
+  mapId: string
+  token: string | null
+  user: AuthUser | null
+  onUpdate: (updated: RichHex) => void
   onClose: () => void
 }) {
   const terrain = TERRAIN[hex.terrain] ?? TERRAIN.other
+  const isGm = user?.role === 'gm'
+  const isLoggedIn = !!token
+
+  const [saving, setSaving] = useState(false)
+  const [editingPartySummary, setEditingPartySummary] = useState(false)
+  const [partySummaryValue, setPartySummaryValue] = useState(hex.party_summary ?? '')
+  const [editingGmNotes, setEditingGmNotes] = useState(false)
+  const [gmNotesValue, setGmNotesValue] = useState(hex.gm_notes ?? '')
+  const [showNoteForm, setShowNoteForm] = useState(false)
+  const [noteContent, setNoteContent] = useState('')
+  const [notePublic, setNotePublic] = useState(false)
+
+  // Sync editable values when hex changes (e.g. after external update)
+  useEffect(() => {
+    setPartySummaryValue(hex.party_summary ?? '')
+    setGmNotesValue(hex.gm_notes ?? '')
+  }, [hex._id, hex.party_summary, hex.gm_notes])
+
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+
+  async function putHex(body: Record<string, unknown>) {
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}/hexes/${hex._id}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify(body),
+      })
+      if (res.ok) onUpdate(await res.json())
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function savePartySummary() {
+    await putHex({ party_summary: partySummaryValue.trim() || null })
+    setEditingPartySummary(false)
+  }
+
+  async function saveGmNotes() {
+    await putHex({ gm_notes: gmNotesValue.trim() || null })
+    setEditingGmNotes(false)
+  }
+
+  async function addNote() {
+    if (!token || !noteContent.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}/hexes/${hex._id}/notes`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ content: noteContent.trim(), is_public: notePublic }),
+      })
+      if (res.ok) {
+        onUpdate(await res.json())
+        setNoteContent('')
+        setNotePublic(false)
+        setShowNoteForm(false)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteNote(noteId: string) {
+    if (!token) return
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}/hexes/${hex._id}/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: authHeaders,
+      })
+      if (res.ok) onUpdate(await res.json())
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const visibleNotes = (hex.notes ?? []).filter(
+    n => n.is_public || (user && n.author_id === user.id)
+  )
 
   return (
     <>
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-[#2a2826] px-4 py-3">
         <button
           onClick={onClose}
@@ -111,8 +222,9 @@ function HexPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {/* Terrain + status */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+
+        {/* Terrain + status badges */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <span
             className="rounded px-2.5 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.12em]"
             style={{ background: terrain.fill, color: terrain.stroke, border: `1px solid ${terrain.stroke}` }}
@@ -131,33 +243,221 @@ function HexPanel({
           )}
         </div>
 
+        {/* Toggle explored — GM only */}
+        {isGm && (
+          <button
+            onClick={() => putHex({ is_explored: !hex.is_explored })}
+            disabled={saving}
+            className={`mb-4 w-full rounded-lg border px-3 py-2 text-[0.72rem] font-medium transition-all disabled:opacity-50 ${
+              hex.is_explored
+                ? 'border-stone-700/40 bg-stone-500/8 text-stone-500 hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-400'
+                : 'border-green-500/20 bg-green-500/8 text-green-400 hover:bg-green-500/12'
+            }`}
+          >
+            {hex.is_explored ? '✕  Marcar como inexplorado' : '✓  Marcar como explorado'}
+          </button>
+        )}
+
         {/* Party summary */}
-        {hex.party_summary && (
-          <div className="mb-4">
-            <SectionLabel>Situación</SectionLabel>
+        <div className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <SectionLabel>Situación del grupo</SectionLabel>
+            {isGm && !editingPartySummary && (
+              <button
+                onClick={() => setEditingPartySummary(true)}
+                className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400"
+              >
+                editar
+              </button>
+            )}
+          </div>
+          {editingPartySummary ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                value={partySummaryValue}
+                onChange={e => setPartySummaryValue(e.target.value)}
+                placeholder="Descripción visible del estado del grupo en este hex..."
+                rows={3}
+                className="w-full resize-none rounded-lg border border-[#3c3330] bg-[#141210] px-3 py-2 text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none focus:border-amber-500/40"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={savePartySummary}
+                  disabled={saving}
+                  className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1.5 text-[0.7rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+                >
+                  Guardar
+                </button>
+                <button
+                  onClick={() => setEditingPartySummary(false)}
+                  className="px-3 py-1.5 text-[0.7rem] text-stone-600 transition-colors hover:text-stone-400"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : hex.party_summary ? (
             <p className="font-body text-[0.9rem] leading-relaxed text-stone-400 italic">
               {hex.party_summary}
             </p>
+          ) : (
+            <p className="font-body text-[0.82rem] italic text-stone-700">Sin registro.</p>
+          )}
+        </div>
+
+        {/* GM notes — GM only */}
+        {isGm && (
+          <div className="mb-4 rounded-lg border border-amber-500/10 bg-amber-500/5 p-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <SectionLabel>Notas del GM</SectionLabel>
+              {!editingGmNotes && (
+                <button
+                  onClick={() => setEditingGmNotes(true)}
+                  className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400"
+                >
+                  editar
+                </button>
+              )}
+            </div>
+            {editingGmNotes ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={gmNotesValue}
+                  onChange={e => setGmNotesValue(e.target.value)}
+                  placeholder="Notas privadas del GM para este hex..."
+                  rows={4}
+                  className="w-full resize-none rounded-lg border border-[#3c3330] bg-[#141210] px-3 py-2 text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none focus:border-amber-500/40"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveGmNotes}
+                    disabled={saving}
+                    className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1.5 text-[0.7rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    onClick={() => setEditingGmNotes(false)}
+                    className="px-3 py-1.5 text-[0.7rem] text-stone-600 transition-colors hover:text-stone-400"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : hex.gm_notes ? (
+              <p className="font-body text-[0.82rem] leading-relaxed text-amber-100/70 italic">
+                {hex.gm_notes}
+              </p>
+            ) : (
+              <p className="font-body text-[0.78rem] italic text-stone-700">Sin notas del GM.</p>
+            )}
           </div>
         )}
+
+        {/* Notes — any logged-in user */}
+        <div className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <SectionLabel>
+              Notas{visibleNotes.length > 0 ? ` (${visibleNotes.length})` : ''}
+            </SectionLabel>
+            {isLoggedIn && !showNoteForm && (
+              <button
+                onClick={() => setShowNoteForm(true)}
+                className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400"
+              >
+                + agregar
+              </button>
+            )}
+          </div>
+
+          {showNoteForm && (
+            <div className="mb-3 rounded-lg border border-[#2a2826] bg-[#141210] p-3">
+              <textarea
+                value={noteContent}
+                onChange={e => setNoteContent(e.target.value)}
+                placeholder="Escribí tu nota para este hexágono..."
+                rows={3}
+                autoFocus
+                className="mb-2 w-full resize-none bg-transparent text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none"
+              />
+              <div className="flex items-center justify-between">
+                <label className="flex cursor-pointer items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={notePublic}
+                    onChange={e => setNotePublic(e.target.checked)}
+                    className="h-3 w-3 accent-amber-500"
+                  />
+                  <span className="text-[0.65rem] text-stone-600">Visible para todos</span>
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={addNote}
+                    disabled={saving || !noteContent.trim()}
+                    className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1 text-[0.68rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    onClick={() => { setShowNoteForm(false); setNoteContent('') }}
+                    className="text-[0.68rem] text-stone-700 transition-colors hover:text-stone-400"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {visibleNotes.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {visibleNotes.map(note => (
+                <div key={note._id} className="group rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2.5">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className={`rounded border px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.08em] ${
+                      note.is_public
+                        ? 'border-green-500/15 bg-green-500/10 text-green-500/80'
+                        : 'border-stone-700/30 bg-stone-500/10 text-stone-600'
+                    }`}>
+                      {note.is_public ? 'Pública' : 'Privada'}
+                    </span>
+                    {(isGm || (user && note.author_id === user.id)) && (
+                      <button
+                        onClick={() => deleteNote(note._id)}
+                        disabled={saving}
+                        className="hidden text-[0.6rem] text-stone-700 transition-colors hover:text-red-400 group-hover:block disabled:opacity-50"
+                      >
+                        eliminar
+                      </button>
+                    )}
+                  </div>
+                  <p className="font-body text-[0.82rem] leading-relaxed text-stone-400">
+                    {note.content}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="font-body text-[0.82rem] italic text-stone-700">Sin notas.</p>
+          )}
+        </div>
 
         {/* Point features */}
         {hex.point_features.length > 0 && (
           <div className="mb-4">
             <SectionLabel>Puntos de interés</SectionLabel>
             <div className="flex flex-col gap-1.5">
-              {hex.point_features.map((feat, i) => {
+              {hex.point_features.map((feat: ApiHexPointFeature, i: number) => {
                 const linkedLoc = feat.location_id ? locationMap.get(feat.location_id) : null
-                const icon = FEAT_ICON[feat.type] ?? '•'
                 return (
                   <div key={i} className="flex items-center gap-2.5 rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2">
-                    <span className="text-[0.9rem] text-amber-500/80">{icon}</span>
+                    <span className="text-[0.9rem] text-amber-500/80">{FEAT_ICON[feat.type] ?? '•'}</span>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[0.75rem] font-medium text-stone-300 truncate">
+                      <div className="truncate text-[0.75rem] font-medium text-stone-300">
                         {linkedLoc?.name ?? feat.label ?? feat.type}
                       </div>
                       {linkedLoc && (
-                        <div className="text-[0.62rem] text-stone-600 truncate">
+                        <div className="truncate text-[0.62rem] text-stone-600">
                           {linkedLoc.public_description || '—'}
                         </div>
                       )}
@@ -170,7 +470,7 @@ function HexPanel({
           </div>
         )}
 
-        {/* Locations embedded in hex */}
+        {/* Locations */}
         {hex.location_ids.length > 0 && (
           <div className="mb-4">
             <SectionLabel>Ubicaciones ({hex.location_ids.length})</SectionLabel>
@@ -186,7 +486,7 @@ function HexPanel({
                         <TypeBadge type={loc.type} />
                       </div>
                       {loc.public_description && (
-                        <p className="font-body text-[0.78rem] italic leading-snug text-stone-600 line-clamp-2">
+                        <p className="font-body line-clamp-2 text-[0.78rem] italic leading-snug text-stone-600">
                           {loc.public_description}
                         </p>
                       )}
@@ -214,16 +514,12 @@ function HexPanel({
             </div>
           </div>
         )}
-
-        {hex.point_features.length === 0 && hex.location_ids.length === 0 && !hex.party_summary && (
-          <p className="font-body text-[0.85rem] italic text-stone-700">
-            Sin información registrada para este hexágono.
-          </p>
-        )}
       </div>
     </>
   )
 }
+
+// ── LocationPanel ─────────────────────────────────────────────────────────────
 
 function LocationPanel({
   locations,
@@ -248,16 +544,12 @@ function LocationPanel({
             {filtered.length} / {locations.length}
           </span>
         </div>
-
-        {/* Type filter chips */}
         {types.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1">
             <button
               onClick={() => onFilterChange(null)}
               className={`rounded px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.08em] transition-colors ${
-                !filterType
-                  ? 'bg-amber-500/15 text-amber-400'
-                  : 'text-stone-600 hover:text-stone-400'
+                !filterType ? 'bg-amber-500/15 text-amber-400' : 'text-stone-600 hover:text-stone-400'
               }`}
             >
               Todos
@@ -269,9 +561,7 @@ function LocationPanel({
                   key={t}
                   onClick={() => onFilterChange(filterType === t ? null : t)}
                   className={`rounded px-2 py-0.5 text-[0.6rem] font-medium uppercase tracking-[0.08em] transition-colors ${
-                    filterType === t
-                      ? `${s.color} ${s.bg}`
-                      : 'text-stone-600 hover:text-stone-400'
+                    filterType === t ? `${s.color} ${s.bg}` : 'text-stone-600 hover:text-stone-400'
                   }`}
                 >
                   {s.label}
@@ -287,9 +577,7 @@ function LocationPanel({
           <div className="px-4 py-10 text-center">
             <div className="mb-2 text-2xl opacity-20">📍</div>
             <p className="font-body text-[0.85rem] italic text-stone-700">
-              {locations.length === 0
-                ? 'Sin ubicaciones registradas aún.'
-                : 'Sin ubicaciones de este tipo.'}
+              {locations.length === 0 ? 'Sin ubicaciones registradas aún.' : 'Sin ubicaciones de este tipo.'}
             </p>
           </div>
         ) : (
@@ -307,7 +595,7 @@ function LocationPanel({
                   <TypeBadge type={loc.type} />
                 </div>
                 {loc.public_description && (
-                  <p className="font-body text-[0.78rem] italic leading-snug text-stone-600 line-clamp-2">
+                  <p className="font-body line-clamp-2 text-[0.78rem] italic leading-snug text-stone-600">
                     {loc.public_description}
                   </p>
                 )}
@@ -320,7 +608,9 @@ function LocationPanel({
   )
 }
 
-function MapLegend({ hexes }: { hexes: ApiHex[] }) {
+// ── MapLegend ─────────────────────────────────────────────────────────────────
+
+function MapLegend({ hexes }: { hexes: RichHex[] }) {
   const terrainTypes = [...new Set(hexes.map(h => h.terrain))].sort()
   if (terrainTypes.length === 0) return null
 
@@ -334,10 +624,7 @@ function MapLegend({ hexes }: { hexes: ApiHex[] }) {
           const s = TERRAIN[t] ?? TERRAIN.other
           return (
             <div key={t} className="flex items-center gap-1.5">
-              <div
-                className="h-2.5 w-4 shrink-0 rounded-sm"
-                style={{ background: s.fill, border: `1px solid ${s.stroke}` }}
-              />
+              <div className="h-2.5 w-4 shrink-0 rounded-sm" style={{ background: s.fill, border: `1px solid ${s.stroke}` }} />
               <span className="text-[0.62rem] text-stone-600">{s.label}</span>
             </div>
           )
@@ -347,35 +634,49 @@ function MapLegend({ hexes }: { hexes: ApiHex[] }) {
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── MapView ───────────────────────────────────────────────────────────────────
+
+type Props = {
+  map: ApiGameMap
+  hexes: ApiHex[]
+  locations: ApiLocation[]
+}
+
+type ViewState = { pan: { x: number; y: number }; zoom: number }
 
 export function MapView({ map, hexes, locations }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const [localHexes, setLocalHexes] = useState<RichHex[]>(hexes as RichHex[])
   const [selectedHexId, setSelectedHexId] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<string | null>(null)
   const [view, setView] = useState<ViewState>({ pan: { x: 0, y: 0 }, zoom: 1 })
   const [isDragging, setIsDragging] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
 
   const dragRef = useRef({ active: false, startX: 0, startY: 0, panX: 0, panY: 0, moved: false })
 
-  // Index locations for quick lookup
+  useEffect(() => {
+    const t = localStorage.getItem('access_token')
+    setToken(t)
+    setUser(getUserFromToken(t))
+  }, [])
+
   const locationMap = useMemo(
     () => new Map(locations.map(l => [l._id, l])),
     [locations]
   )
 
   const selectedHex = useMemo(
-    () => hexes.find(h => h._id === selectedHexId) ?? null,
-    [hexes, selectedHexId]
+    () => localHexes.find(h => h._id === selectedHexId) ?? null,
+    [localHexes, selectedHexId]
   )
 
-  // Compute pixel centers for each hex
   const hexData = useMemo(
-    () => hexes.map(h => ({ ...h, ...axialToPixel(h.q, h.r) })),
-    [hexes]
+    () => localHexes.map(h => ({ ...h, ...axialToPixel(h.q, h.r) })),
+    [localHexes]
   )
 
-  // Translation that puts the grid's top-left at (padding, padding)
   const { initTx, initTy } = useMemo(() => {
     if (hexData.length === 0) return { initTx: 60, initTy: 60 }
     const xs = hexData.map(h => h.x)
@@ -386,7 +687,9 @@ export function MapView({ map, hexes, locations }: Props) {
     }
   }, [hexData])
 
-  // ── Pointer handlers (pan + click distinction) ────────────────────────────
+  const handleHexUpdate = useCallback((updated: RichHex) => {
+    setLocalHexes(prev => prev.map(h => h._id === updated._id ? updated : h))
+  }, [])
 
   const handlePointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     dragRef.current = {
@@ -415,7 +718,6 @@ export function MapView({ map, hexes, locations }: Props) {
     setIsDragging(false)
   }, [])
 
-  // Zoom toward cursor
   const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault()
     const svgEl = svgRef.current
@@ -447,13 +749,11 @@ export function MapView({ map, hexes, locations }: Props) {
     setView({ pan: { x: 0, y: 0 }, zoom: 1 })
   }, [])
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
     <div className="flex min-h-0 flex-1">
       {/* ── Map canvas ── */}
       <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: '#080806' }}>
-        {hexes.length === 0 ? (
+        {localHexes.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center" style={{ animation: 'fade-up 0.5s ease both' }}>
               <div className="mb-3 text-5xl opacity-15">🗺️</div>
@@ -495,7 +795,7 @@ export function MapView({ map, hexes, locations }: Props) {
               </span>
             </div>
 
-            {/* Party legend dot */}
+            {/* Party dot legend */}
             {map.current_party_hex_id && (
               <div className="absolute bottom-3 right-4 z-10 flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-1.5">
                 <div className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
@@ -532,16 +832,10 @@ export function MapView({ map, hexes, locations }: Props) {
                   const t = TERRAIN[hex.terrain] ?? TERRAIN.other
                   const isSelected = hex._id === selectedHexId
                   const isParty = hex._id === map.current_party_hex_id
-                  const outer = hexPoints(hex.x, hex.y, HEX_R)
                   const inner = hexPoints(hex.x, hex.y, HEX_R - 1.2)
 
                   return (
-                    <g
-                      key={hex._id}
-                      onClick={() => handleHexClick(hex._id)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      {/* Base terrain fill */}
+                    <g key={hex._id} onClick={() => handleHexClick(hex._id)} style={{ cursor: 'pointer' }}>
                       <polygon
                         points={inner}
                         fill={hex.is_explored ? t.fill : '#0c0a08'}
@@ -549,7 +843,6 @@ export function MapView({ map, hexes, locations }: Props) {
                         strokeWidth={isSelected ? 1.8 : 0.7}
                       />
 
-                      {/* Unexplored fog overlay */}
                       {!hex.is_explored && (
                         <polygon
                           points={inner}
@@ -560,7 +853,6 @@ export function MapView({ map, hexes, locations }: Props) {
                         />
                       )}
 
-                      {/* Hover / selected glow */}
                       {isSelected && (
                         <polygon
                           points={inner}
@@ -571,7 +863,6 @@ export function MapView({ map, hexes, locations }: Props) {
                         />
                       )}
 
-                      {/* Point feature icons */}
                       {hex.point_features.map((feat: ApiHexPointFeature, fi: number) => (
                         <text
                           key={fi}
@@ -587,7 +878,6 @@ export function MapView({ map, hexes, locations }: Props) {
                         </text>
                       ))}
 
-                      {/* Party indicator */}
                       {isParty && (
                         <circle
                           cx={hex.x}
@@ -599,7 +889,6 @@ export function MapView({ map, hexes, locations }: Props) {
                         />
                       )}
 
-                      {/* Region label for selected */}
                       {isSelected && hex.region && (
                         <text
                           x={hex.x}
@@ -627,6 +916,10 @@ export function MapView({ map, hexes, locations }: Props) {
           <HexPanel
             hex={selectedHex}
             locationMap={locationMap}
+            mapId={map._id}
+            token={token}
+            user={user}
+            onUpdate={handleHexUpdate}
             onClose={() => setSelectedHexId(null)}
           />
         ) : (
@@ -636,8 +929,7 @@ export function MapView({ map, hexes, locations }: Props) {
             onFilterChange={setFilterType}
           />
         )}
-
-        <MapLegend hexes={hexes} />
+        <MapLegend hexes={localHexes} />
       </aside>
     </div>
   )
