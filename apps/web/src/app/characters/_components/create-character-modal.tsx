@@ -37,25 +37,37 @@ export function CreateCharacterButton() {
     if (!token) { setError('Debés estar autenticado'); setLoading(false); return }
 
     try {
-      let body: string
-      let endpoint: string
+      let build: unknown
 
       if (tab === 'pathbuilder') {
         const id = parseInt(pbId, 10)
         if (isNaN(id) || id < 1) { setError('ID de Pathbuilder inválido'); setLoading(false); return }
-        endpoint = '/characters/import/pathbuilder'
-        body = JSON.stringify({ pathbuilder_id: id })
+
+        // Fetch directly from the browser — avoids Railway→Pathbuilder connectivity issues
+        let pbRes: Response
+        try {
+          pbRes = await fetch(`https://pathbuilder2e.com/json.php?id=${id}`)
+          if (!pbRes.ok) throw new Error(`HTTP ${pbRes.status}`)
+        } catch {
+          setError('No se pudo conectar con Pathbuilder. Exportá el JSON manualmente desde la app y usá la pestaña JSON.')
+          setLoading(false)
+          return
+        }
+        const pbData = await pbRes.json() as { success: boolean; build: unknown }
+        if (!pbData.success) {
+          setError('ID no encontrado o el personaje no es público en Pathbuilder.')
+          setLoading(false)
+          return
+        }
+        build = pbData.build
       } else {
-        let parsed: unknown
-        try { parsed = JSON.parse(jsonText) } catch { setError('JSON inválido'); setLoading(false); return }
-        endpoint = '/characters/import/json'
-        body = JSON.stringify({ build: parsed })
+        try { build = JSON.parse(jsonText) } catch { setError('JSON inválido'); setLoading(false); return }
       }
 
-      const res = await fetch(`${API_URL}${endpoint}`, {
+      const res = await fetch(`${API_URL}/characters/import/json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body,
+        body: JSON.stringify({ build }),
       })
 
       if (!res.ok) {
