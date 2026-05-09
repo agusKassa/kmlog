@@ -5,12 +5,20 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { SessionsTab } from './sessions-tab'
 import { PartyTab } from './party-tab'
+import { NpcsTab } from './npcs-tab'
+import { XpTab } from './xp-tab'
+import { LootTab } from './loot-tab'
+import { PlayersTab } from './players-tab'
 
-type Tab = 'sessions' | 'party'
+type Tab = 'sessions' | 'party' | 'npcs' | 'xp' | 'loot' | 'players'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'sessions', label: 'Sesiones',         icon: '📜' },
-  { id: 'party',    label: 'Estado del Grupo',  icon: '⚔️' },
+  { id: 'sessions', label: 'Sesiones',        icon: '📜' },
+  { id: 'party',    label: 'Estado del Grupo', icon: '⚔️' },
+  { id: 'npcs',     label: 'NPCs',             icon: '👤' },
+  { id: 'xp',       label: 'XP',               icon: '⭐' },
+  { id: 'loot',     label: 'Loot',             icon: '🎁' },
+  { id: 'players',  label: 'Jugadores',        icon: '👥' },
 ]
 
 function LoadingScreen() {
@@ -105,6 +113,10 @@ export function GmPanel() {
       <div className="mx-auto max-w-7xl px-6 py-10">
         {tab === 'sessions' && <SessionsTab token={token!} />}
         {tab === 'party'    && <PartyTab    token={token!} />}
+        {tab === 'npcs'     && <NpcsTab     token={token!} />}
+        {tab === 'xp'       && <XpTab       token={token!} />}
+        {tab === 'loot'     && <LootTab     token={token!} />}
+        {tab === 'players'  && <PlayersTab  token={token!} />}
       </div>
     </main>
   )

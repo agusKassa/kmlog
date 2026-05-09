@@ -31,6 +31,10 @@ export class UsersService {
     await this.userModel.findByIdAndUpdate(id, { refresh_token_hash: hash }).exec()
   }
 
+  async findAll(): Promise<UserDocument[]> {
+    return this.userModel.find({}, { password_hash: 0, refresh_token_hash: 0 }).exec()
+  }
+
   async updateCharacterId(id: string, characterId: string | null): Promise<void> {
     await this.userModel.findByIdAndUpdate(id, { character_id: characterId }).exec()
   }

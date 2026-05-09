@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Scroll, Users, Shield, Map, StickyNote } from 'lucide-react'
+import { Scroll, Users, Shield, Map, StickyNote, Ghost } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
 const navLinks = [
@@ -10,6 +10,7 @@ const navLinks = [
   { href: '/characters', label: 'Personajes',  icon: Users },
   { href: '/party',      label: 'Party',       icon: Shield },
   { href: '/map',        label: 'Mapa',        icon: Map },
+  { href: '/npcs',       label: 'NPCs',        icon: Ghost },
   { href: '/notes',      label: 'Notas',       icon: StickyNote },
 ]
 

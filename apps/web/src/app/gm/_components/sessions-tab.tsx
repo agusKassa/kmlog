@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { clientFetch } from '@/lib/client-api'
 import type { ApiSession, SessionStatus } from '@/lib/api'
+import { SessionEventsPanel } from './session-events-panel'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -282,9 +283,11 @@ interface SessionRowProps {
   token: string
   onUpdated: (s: ApiSession) => void
   onDeleted: (id: string) => void
+  onToggleEvents: () => void
+  showEvents: boolean
 }
 
-function SessionRow({ session, token, onUpdated, onDeleted }: SessionRowProps) {
+function SessionRow({ session, token, onUpdated, onDeleted, onToggleEvents, showEvents }: SessionRowProps) {
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -344,6 +347,16 @@ function SessionRow({ session, token, onUpdated, onDeleted }: SessionRowProps) {
         {/* Actions */}
         <div className="flex shrink-0 items-center gap-1.5">
           <button
+            onClick={() => { onToggleEvents(); setEditing(false) }}
+            className={`rounded-md border px-3 py-1.5 text-[0.68rem] transition-colors ${
+              showEvents
+                ? 'border-amber-500/30 bg-amber-500/8 text-amber-400'
+                : 'border-[#3c3330] text-stone-500 hover:bg-[#232120] hover:text-stone-300'
+            }`}
+          >
+            Eventos
+          </button>
+          <button
             onClick={() => { setEditing(e => !e); setConfirmDelete(false) }}
             className="rounded-md border border-[#3c3330] px-3 py-1.5 text-[0.68rem] text-stone-500 transition-colors hover:bg-[#232120] hover:text-stone-300"
           >
@@ -371,6 +384,10 @@ function SessionRow({ session, token, onUpdated, onDeleted }: SessionRowProps) {
           onCancel={() => setEditing(false)}
         />
       )}
+
+      {showEvents && (
+        <SessionEventsPanel sessionId={session._id} token={token} />
+      )}
     </div>
   )
 }
@@ -381,6 +398,7 @@ export function SessionsTab({ token }: { token: string }) {
   const [sessions, setSessions] = useState<ApiSession[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [openEventsId, setOpenEventsId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -463,6 +481,8 @@ export function SessionsTab({ token }: { token: string }) {
               token={token}
               onUpdated={handleUpdated}
               onDeleted={handleDeleted}
+              showEvents={openEventsId === s._id}
+              onToggleEvents={() => setOpenEventsId(id => id === s._id ? null : s._id)}
             />
           ))}
         </div>

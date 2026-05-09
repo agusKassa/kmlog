@@ -20,7 +20,7 @@ export class PartyStateService {
     const doc = await this.get()
 
     // Archive current content before overwriting
-    if (doc.current_content) {
+    if (doc.current_content && doc.last_updated_by) {
       doc.versions.push({
         content: doc.current_content,
         updated_by: doc.last_updated_by!,

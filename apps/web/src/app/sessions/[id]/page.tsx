@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { api, formatDate } from '@/lib/api'
+import { api, formatDate, type ApiEvent } from '@/lib/api'
 
 const statusStyles: Record<string, string> = {
   published: 'bg-green-500/8 text-green-300 border border-green-500/20',
@@ -9,6 +9,122 @@ const statusStyles: Record<string, string> = {
 }
 const statusLabel: Record<string, string> = {
   published: 'Publicada', played: 'Jugada', draft: 'Borrador',
+}
+
+const DIFFICULTY_COLOR: Record<string, string> = {
+  trivial:    'text-stone-500  border-stone-700/40  bg-stone-500/8',
+  low:        'text-sky-400    border-sky-500/25    bg-sky-500/8',
+  moderate:   'text-amber-400  border-amber-500/25  bg-amber-500/8',
+  severe:     'text-orange-400 border-orange-500/25 bg-orange-500/8',
+  extreme:    'text-rose-400   border-rose-500/25   bg-rose-500/8',
+}
+
+function EventCard({ event, index }: { event: ApiEvent; index: number }) {
+  const isEncounter = event.kind === 'encounter'
+  const approvedXp  = event.xp_entries.filter(x => x.status === 'approved')
+  const totalXp     = approvedXp.reduce((s, x) => s + x.amount, 0)
+  const unclaimedLoot = event.loot.filter(l => l.status !== 'claimed' && l.status !== 'party')
+  const lootValue   = event.loot.reduce((s, l) => s + l.value_gp * l.quantity, 0)
+
+  return (
+    <div
+      className="rounded-xl border border-[#2a2826] bg-[#181412] px-5 py-4"
+      style={{ animation: `fade-up 0.4s ease both ${0.05 * index}s` }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className={`rounded border px-2 py-0.5 text-[0.58rem] font-bold uppercase tracking-[0.1em] ${
+              isEncounter
+                ? 'border-rose-500/25 bg-rose-500/8 text-rose-400'
+                : 'border-sky-500/25 bg-sky-500/8 text-sky-400'
+            }`}>
+              {isEncounter ? 'Encuentro' : 'Evento'}
+            </span>
+            {event.difficulty && (
+              <span className={`rounded border px-2 py-0.5 text-[0.58rem] font-medium uppercase tracking-[0.1em] ${
+                DIFFICULTY_COLOR[event.difficulty] ?? DIFFICULTY_COLOR.moderate
+              }`}>
+                {event.difficulty}
+              </span>
+            )}
+            {event.event_type && (
+              <span className="text-[0.65rem] text-stone-600">{event.event_type}</span>
+            )}
+          </div>
+
+          <h3 className="font-display text-[0.95rem] font-semibold tracking-[0.04em] text-stone-100">
+            {event.title}
+          </h3>
+          {event.description && (
+            <p className="mt-1.5 text-[0.84rem] leading-relaxed text-stone-400 line-clamp-3">
+              {event.description}
+            </p>
+          )}
+        </div>
+
+        <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
+          {totalXp > 0 && (
+            <div className="flex items-baseline gap-1">
+              <span className="font-display text-[1.1rem] font-bold leading-none text-amber-400">{totalXp}</span>
+              <span className="text-[0.58rem] uppercase tracking-[0.1em] text-stone-600">XP</span>
+            </div>
+          )}
+          {lootValue > 0 && (
+            <div className="flex items-baseline gap-1">
+              <span className="font-display text-[0.85rem] font-semibold leading-none text-amber-600/70">
+                {lootValue} gp
+              </span>
+              {unclaimedLoot.length > 0 && (
+                <span className="text-[0.58rem] text-stone-600">loot</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* XP entries */}
+      {approvedXp.length > 0 && (
+        <div className="mt-3 border-t border-[#2a2826] pt-3">
+          <div className="flex flex-wrap gap-2">
+            {approvedXp.map(xp => (
+              <div key={xp._id} className="flex items-center gap-1.5 rounded-lg border border-[#2a2826] bg-[#0e0c0b] px-2.5 py-1">
+                <span className="font-display text-[0.75rem] font-bold text-amber-400">{xp.amount}</span>
+                <span className="text-[0.58rem] text-stone-600">XP</span>
+                <span className="text-[0.72rem] text-stone-500">{xp.reason}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Loot pills */}
+      {event.loot.length > 0 && (
+        <div className="mt-3 border-t border-[#2a2826] pt-3">
+          <div className="flex flex-wrap gap-2">
+            {event.loot.map(item => (
+              <div key={item._id} className="flex items-center gap-1.5 rounded-lg border border-[#2a2826] bg-[#0e0c0b] px-2.5 py-1">
+                <span className="text-[0.72rem] text-stone-400">{item.name}</span>
+                {item.quantity > 1 && (
+                  <span className="text-[0.65rem] text-stone-600">×{item.quantity}</span>
+                )}
+                {item.value_gp > 0 && (
+                  <span className="text-[0.62rem] text-amber-600/60">{item.value_gp} gp</span>
+                )}
+                <span className={`text-[0.58rem] font-medium ${
+                  item.status === 'unclaimed' ? 'text-stone-600'
+                  : item.status === 'party'   ? 'text-sky-500'
+                  : 'text-emerald-500'
+                }`}>
+                  {item.status === 'unclaimed' ? '◌' : item.status === 'party' ? '⚔' : '✓'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Decorative divider
@@ -24,9 +140,10 @@ function Divider() {
 
 export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [session, allSessions] = await Promise.all([
+  const [session, allSessions, events] = await Promise.all([
     api.sessions.findById(id),
     api.sessions.findAll(),
+    api.events.findBySession(id),
   ])
 
   if (!session) notFound()
@@ -148,6 +265,24 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
             <p className="font-body text-[0.9rem] italic text-stone-700">
               El GM aún no ha redactado el resumen de esta sesión.
             </p>
+          </div>
+        )}
+
+        {/* Events & Encounters */}
+        {events && events.length > 0 && (
+          <div className="mt-14" style={{ animation: 'fade-up 0.5s ease both 0.25s' }}>
+            <div className="mb-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-[#2a2826]" />
+              <span className="font-display text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-stone-600">
+                Eventos de sesión
+              </span>
+              <div className="h-px flex-1 bg-[#2a2826]" />
+            </div>
+            <div className="flex flex-col gap-3">
+              {[...events].sort((a, b) => a.order - b.order).map((event, i) => (
+                <EventCard key={event._id} event={event} index={i} />
+              ))}
+            </div>
           </div>
         )}
 

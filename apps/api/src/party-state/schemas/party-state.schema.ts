@@ -20,7 +20,7 @@ class StateVersion {
 
 @Schema()
 export class PartyState {
-  @Prop({ required: true, default: '' })
+  @Prop({ default: '' })
   current_content: string
 
   @Prop({ type: [StateVersion], default: [] })

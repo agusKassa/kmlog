@@ -10,7 +10,7 @@ import type { PathbuilderBuild } from '@kmlog/types'
 import { Character, CharacterDocument } from './schemas/character.schema'
 import { UsersService } from '../users/users.service'
 import { CloudinaryService } from '../cloudinary/cloudinary.service'
-import { ImportByIdDto, ImportByJsonDto } from './dto/import-character.dto'
+import { ImportByIdDto, ImportByJsonDto, ImportForUserDto, ImportJsonForUserDto } from './dto/import-character.dto'
 import { UpdateCharacterDto, UpdateGmNotesDto } from './dto/update-character.dto'
 
 const PUBLIC_PROJECTION = { gm_notes: 0 } as const
@@ -61,6 +61,26 @@ export class CharactersService {
 
   async importByJson(userId: string, dto: ImportByJsonDto): Promise<CharacterDocument> {
     return this.createCharacter(userId, dto.build, null)
+  }
+
+  async importForUser(dto: ImportForUserDto): Promise<CharacterDocument> {
+    const url = `https://pathbuilder2e.com/json.php?id=${dto.pathbuilder_id}`
+    let data: PathbuilderResponse
+
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'kmlog/1.0' } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      data = await res.json() as PathbuilderResponse
+    } catch {
+      throw new BadRequestException('Could not reach Pathbuilder. Try importing by JSON.')
+    }
+
+    if (!data.success) throw new BadRequestException('Pathbuilder ID not found or not public.')
+    return this.createCharacter(dto.user_id, data.build, dto.pathbuilder_id)
+  }
+
+  async importJsonForUser(dto: ImportJsonForUserDto): Promise<CharacterDocument> {
+    return this.createCharacter(dto.user_id, dto.build, null)
   }
 
   async update(

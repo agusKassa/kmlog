@@ -153,6 +153,58 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T | nul
   }
 }
 
+export interface ApiGameMap {
+  _id: string
+  name: string
+  hex_config: {
+    hex_size_px: number
+    cols: number
+    rows: number
+    hex_size_miles: number
+    travel_hours_per_day: number
+    party_speed_ft: number
+  }
+  current_party_hex_id: string | null
+  reference_image_url: string | null
+  is_public: boolean
+}
+
+export interface ApiHexPointFeature {
+  type: string
+  position: number
+  label: string | null
+  location_id: string | null
+}
+
+export interface ApiHex {
+  _id: string
+  map_id: string
+  q: number
+  r: number
+  terrain: string
+  region: string | null
+  is_explored: boolean
+  point_features: ApiHexPointFeature[]
+  linear_features: Array<{ type: string; path: number[] }>
+  party_summary: string | null
+  session_ids: string[]
+  location_ids: string[]
+}
+
+export interface ApiLocation {
+  _id: string
+  name: string
+  type: string
+  parent_location_id: string | null
+  discovered_in_session_id: string | null
+  public_description: string
+  public_image_urls: string[]
+  visibility: {
+    mode: string
+    allowed_user_ids: string[]
+  }
+}
+
 export const api = {
   sessions: {
     findAll: () => apiFetch<ApiSession[]>('/sessions'),
@@ -165,6 +217,83 @@ export const api = {
   partyState: {
     get: () => apiFetch<ApiPartyState>('/party-state'),
   },
+  maps: {
+    findAll: () => apiFetch<ApiGameMap[]>('/maps'),
+    findById: (id: string) => apiFetch<ApiGameMap>(`/maps/${id}`),
+  },
+  hexes: {
+    findByMap: (mapId: string) => apiFetch<ApiHex[]>(`/maps/${mapId}/hexes`),
+  },
+  locations: {
+    findAll: () => apiFetch<ApiLocation[]>('/locations'),
+    findById: (id: string) => apiFetch<ApiLocation>(`/locations/${id}`),
+  },
+  npcs: {
+    findAll: () => apiFetch<ApiNpc[]>('/npcs'),
+    findById: (id: string) => apiFetch<ApiNpc>(`/npcs/${id}`),
+  },
+  events: {
+    findBySession: (sessionId: string) => apiFetch<ApiEvent[]>(`/sessions/${sessionId}/events`),
+  },
+}
+
+export interface ApiXpEntry {
+  _id: string
+  amount: number
+  reason: string
+  status: 'pending' | 'approved' | 'rejected'
+  submitted_by: string
+  reviewed_by: string | null
+  reviewed_at: string | null
+}
+
+export interface ApiLootEntry {
+  _id: string
+  name: string
+  type: 'weapon' | 'armor' | 'consumable' | 'treasure' | 'magic' | 'other'
+  value_gp: number
+  quantity: number
+  description: string
+  status: 'unclaimed' | 'claimed' | 'party'
+  owner_character_id: string | null
+}
+
+export interface ApiEvent {
+  _id: string
+  session_id: string
+  kind: 'event' | 'encounter'
+  event_type: string | null
+  difficulty: string | null
+  title: string
+  description: string
+  order: number
+  xp_entries: ApiXpEntry[]
+  loot: ApiLootEntry[]
+}
+
+export interface ApiUser {
+  _id: string
+  email: string
+  username: string
+  role: 'gm' | 'player'
+  character_id: string | null
+  createdAt: string
+}
+
+export interface ApiNpc {
+  _id: string
+  name: string
+  role: 'ally' | 'enemy' | 'neutral' | 'unknown'
+  is_alive: boolean
+  portrait_url: string | null
+  public_description: string
+  public_image_urls: string[]
+  gm_notes?: string
+  true_motives?: string
+  stats?: Record<string, unknown> | null
+  location_id: string | null
+  first_seen_session_id: string | null
+  createdAt: string
 }
 
 export function formatDate(iso: string | null): string {
