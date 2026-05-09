@@ -35,6 +35,7 @@ export function LoginForm() {
 
       localStorage.setItem('access_token', data.access_token)
       localStorage.setItem('refresh_token', data.refresh_token)
+      window.dispatchEvent(new Event('auth-changed'))
 
       router.push('/')
       router.refresh()

@@ -233,6 +233,11 @@ export const api = {
     findAll: () => apiFetch<ApiNpc[]>('/npcs'),
     findById: (id: string) => apiFetch<ApiNpc>(`/npcs/${id}`),
   },
+  users: {
+    me: (token: string) => apiFetch<ApiUser>('/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  },
   events: {
     findBySession: (sessionId: string) => apiFetch<ApiEvent[]>(`/sessions/${sessionId}/events`),
   },
