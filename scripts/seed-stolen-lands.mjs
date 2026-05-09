@@ -82,41 +82,81 @@ function getRegion(col, row, terrain) {
   return 'Tierras Robadas'
 }
 
-// ─── Ríos y caminos ───────────────────────────────────────────────────────────
-// Edges (pointy-top): 0=NE 1=E 2=SE 3=SW 4=W 5=NW
-// Keys are "col,row" in OFFSET coords
-const LINEAR = {
-  // Shrike River — flows south through Greenbelt toward Tuskwater
-  '12,1': [{ type: 'river', path: [0, 3] }],
-  '12,2': [{ type: 'river', path: [0, 3] }],
-  '12,3': [{ type: 'river', path: [0, 2] }],
-  '13,4': [{ type: 'river', path: [5, 2] }],
-  // Thorn River — flows through upper Narlmarches
-  '11,2': [{ type: 'river', path: [0, 3] }],
-  '11,3': [{ type: 'river', path: [0, 3] }],
-  // Murque River — through Narlmarches south
-  '11,4': [{ type: 'river', path: [0, 3] }],
-  '11,5': [{ type: 'river', path: [0, 3] }],
-  // Skunk River — through Kamelands to Tuskwater
-  '16,3': [{ type: 'river', path: [5, 3] }],
-  '16,4': [{ type: 'river', path: [5, 3] }],
-  '15,5': [{ type: 'river', path: [5, 3] }],
-  // Sellen River — along Nomen Heights
-  '18,3': [{ type: 'river', path: [5, 3] }],
-  '18,4': [{ type: 'river', path: [5, 3] }],
-  '17,5': [{ type: 'river', path: [5, 3] }],
-  '17,6': [{ type: 'river', path: [5, 3] }],
-  // Old Road — east-west through center
-  '5,1':  [{ type: 'road', path: [4, 1] }],
-  '6,1':  [{ type: 'road', path: [4, 1] }],
-  '7,1':  [{ type: 'road', path: [4, 1] }],
-  '8,1':  [{ type: 'road', path: [4, 1] }],
-  '9,1':  [{ type: 'road', path: [4, 1] }],
-  '10,1': [{ type: 'road', path: [4, 1] }],
-  '11,1': [{ type: 'road', path: [4, 1] }],
-  '12,0': [{ type: 'road', path: [4, 1] }],
-  '13,0': [{ type: 'road', path: [4, 1] }],
+// ─── Ríos y caminos (path-based, auto-continuity) ────────────────────────────
+// Edges pointy-top: 0=NE 1=E 2=SE 3=SW 4=W 5=NW
+//
+// Instead of manually assigning entry/exit edges (which breaks continuity),
+// we define paths as sequences of [col, row] offset coordinates.
+// getEdgeTo() computes which edge of hex A faces hex B, and each hex in the
+// sequence gets path=[entry, exit] that precisely matches its neighbors.
+// Because two adjacent hexes share a physical edge, the endpoint of the
+// bezier in hex A (at the shared edge midpoint) equals the startpoint in hex B.
+
+const OPPOSITE = [3, 4, 5, 0, 1, 2]  // edge i → opposite edge
+
+function getEdgeTo(fromCol, fromRow, toCol, toRow) {
+  const even = fromRow % 2 === 0
+  const dc = toCol - fromCol
+  const dr = toRow - fromRow
+  if (dr ===  0 && dc ===  1) return 1  // E
+  if (dr ===  0 && dc === -1) return 4  // W
+  if (dr === -1) return (even ? dc === 0 : dc === 1) ? 0 : 5  // NE or NW
+  if (dr ===  1) return (even ? dc === 0 : dc === 1) ? 2 : 3  // SE or SW
+  throw new Error(`Non-adjacent hexes: (${fromCol},${fromRow})→(${toCol},${toRow})`)
 }
+
+function buildLinearFeatures(pathDefs) {
+  const map = {}
+  for (const { type, hexes } of pathDefs) {
+    for (let i = 0; i < hexes.length; i++) {
+      const [col, row] = hexes[i]
+      let entryEdge, exitEdge
+      if (hexes.length === 1) {
+        entryEdge = 0; exitEdge = 3
+      } else if (i === 0) {
+        exitEdge  = getEdgeTo(col, row, hexes[1][0], hexes[1][1])
+        entryEdge = OPPOSITE[exitEdge]
+      } else if (i === hexes.length - 1) {
+        entryEdge = getEdgeTo(col, row, hexes[i-1][0], hexes[i-1][1])
+        exitEdge  = OPPOSITE[entryEdge]
+      } else {
+        entryEdge = getEdgeTo(col, row, hexes[i-1][0], hexes[i-1][1])
+        exitEdge  = getEdgeTo(col, row, hexes[i+1][0], hexes[i+1][1])
+      }
+      const key = `${col},${row}`
+      if (!map[key]) map[key] = []
+      map[key].push({ type, path: [entryEdge, exitEdge] })
+    }
+  }
+  return map
+}
+
+// Each river/road is a list of adjacent [col, row] offset coords (N→S / W→E).
+// Adjacency is verified at build time; an error will throw if a step is wrong.
+const LINEAR_PATHS = [
+  // Shrike River — main river of the Greenbelt, flows south into Tuskwater Lake
+  { type: 'river', hexes: [[12,0],[12,1],[12,2],[12,3],[13,4],[14,4],[15,4]] },
+
+  // Thorn River — flows south through Narlmarches, confluences with Shrike at (12,3)
+  { type: 'river', hexes: [[11,0],[11,1],[11,2],[11,3],[12,3]] },
+
+  // Murque River — cuts south through Narlmarches into the Tuskwater south bay
+  { type: 'river', hexes: [[10,2],[10,3],[11,4],[11,5],[12,6],[13,6]] },
+
+  // Skunk River — flows west through Kamelands hills into Tuskwater
+  { type: 'river', hexes: [[17,2],[16,3],[16,4],[15,4]] },
+
+  // Sellen River — flows south along Nomen Heights toward Sellen Hills
+  { type: 'river', hexes: [[18,1],[18,2],[17,3],[17,4],[17,5],[17,6],[17,7]] },
+
+  // Old Road — main east-west road from Rostland south into the Stolen Lands
+  { type: 'road', hexes: [[5,0],[6,0],[7,0],[8,0],[9,0],[10,0],[11,0],[12,0],[13,0],[14,0],[15,0],[16,0],[17,0]] },
+
+  // South Road — branches from Old Road at (13,0), descends into the Greenbelt
+  { type: 'road', hexes: [[13,0],[12,1],[12,2],[12,3],[12,4]] },
+]
+
+const LINEAR = buildLinearFeatures(LINEAR_PATHS)
 
 // ─── Build hex array ──────────────────────────────────────────────────────────
 function buildHexes() {
