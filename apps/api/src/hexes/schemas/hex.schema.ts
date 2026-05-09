@@ -44,6 +44,9 @@ export class Hex {
   region: string | null
 
   @Prop({ default: false })
+  is_discovered: boolean
+
+  @Prop({ default: false })
   is_explored: boolean
 
   @Prop({ type: [PointFeatureSchema], default: [] })

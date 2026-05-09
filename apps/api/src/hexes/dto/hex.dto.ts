@@ -31,6 +31,7 @@ export class LinearFeatureDto {
 export class UpdateHexDto {
   @IsOptional() @IsEnum(TERRAIN_VALUES) terrain?: TerrainType
   @IsOptional() @IsString() region?: string | null
+  @IsOptional() @IsBoolean() is_discovered?: boolean
   @IsOptional() @IsBoolean() is_explored?: boolean
   @IsOptional() @IsString() party_summary?: string | null
   @IsOptional() @IsString() gm_notes?: string | null
@@ -60,6 +61,7 @@ export class BulkHexDto {
   @IsInt() r: number
   @IsEnum(TERRAIN_VALUES) terrain: TerrainType
   @IsOptional() @IsString() region?: string | null
+  @IsOptional() @IsBoolean() is_discovered?: boolean
   @IsOptional() @IsBoolean() is_explored?: boolean
   @IsOptional() @IsString() party_summary?: string | null
   @IsOptional() @IsString() gm_notes?: string | null

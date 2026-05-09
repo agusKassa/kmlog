@@ -183,6 +183,7 @@ export interface ApiHex {
   r: number
   terrain: string
   region: string | null
+  is_discovered: boolean
   is_explored: boolean
   point_features: ApiHexPointFeature[]
   linear_features: Array<{ type: string; path: number[] }>

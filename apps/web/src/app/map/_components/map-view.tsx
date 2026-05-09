@@ -627,9 +627,12 @@ function HexPanel({
     }
   }
 
-  const visibleNotes = (hex.notes ?? []).filter(
-    n => n.is_public || (user && n.author_id === user.id)
-  )
+  // Players see public notes only when hex is explored; GM always sees all
+  const visibleNotes = (hex.notes ?? []).filter(n => {
+    if (isGm) return true
+    if (!hex.is_explored) return false
+    return n.is_public
+  })
 
   // NPCs at this hex (via their location_id matching one of hex.location_ids)
   const hexLocIds = useMemo(() => new Set(hex.location_ids.map(String)), [hex.location_ids])
@@ -675,27 +678,36 @@ function HexPanel({
             style={{ background: terrain.fill, color: terrain.stroke, border: `1px solid ${terrain.stroke}` }}>
             {terrain.label}
           </span>
-          <span className={`rounded border px-2 py-0.5 text-[0.62rem] uppercase tracking-[0.1em] ${
-            hex.is_explored
-              ? 'border-green-500/25 bg-green-500/8 text-green-400'
-              : 'border-stone-700/40 bg-stone-500/8 text-stone-600'
-          }`}>
-            {hex.is_explored ? 'Explorado' : 'Inexplorado'}
-          </span>
+          {hex.is_explored ? (
+            <span className="rounded border border-green-500/25 bg-green-500/8 px-2 py-0.5 text-[0.62rem] uppercase tracking-[0.1em] text-green-400">
+              Explorado
+            </span>
+          ) : hex.is_discovered ? (
+            <span className="rounded border border-sky-500/25 bg-sky-500/8 px-2 py-0.5 text-[0.62rem] uppercase tracking-[0.1em] text-sky-400">
+              Descubierto
+            </span>
+          ) : (
+            <span className="rounded border border-stone-700/40 bg-stone-500/8 px-2 py-0.5 text-[0.62rem] uppercase tracking-[0.1em] text-stone-600">
+              Sin descubrir
+            </span>
+          )}
           {hex.region && <span className="text-[0.7rem] italic text-stone-600">{hex.region}</span>}
         </div>
 
-        {/* Toggle explored — GM only */}
-        {isGm && (
-          <button onClick={() => putHex({ is_explored: !hex.is_explored })} disabled={saving}
-            className={`mb-4 w-full rounded-lg border px-3 py-2 text-[0.72rem] font-medium transition-all disabled:opacity-50 ${
-              hex.is_explored
-                ? 'border-stone-700/40 bg-stone-500/8 text-stone-500 hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-400'
-                : 'border-green-500/20 bg-green-500/8 text-green-400 hover:bg-green-500/12'
-            }`}>
-            {hex.is_explored ? '✕  Marcar como inexplorado' : '✓  Marcar como explorado'}
-          </button>
-        )}
+        {/* Discovery cycle — GM only */}
+        {isGm && (() => {
+          const next = !hex.is_discovered
+            ? { label: '◎  Marcar como descubierto', body: { is_discovered: true, is_explored: false }, cls: 'border-sky-500/20 bg-sky-500/8 text-sky-400 hover:bg-sky-500/12' }
+            : !hex.is_explored
+            ? { label: '✓  Marcar como explorado',   body: { is_discovered: true, is_explored: true },  cls: 'border-green-500/20 bg-green-500/8 text-green-400 hover:bg-green-500/12' }
+            : { label: '✕  Revertir a sin descubrir', body: { is_discovered: false, is_explored: false }, cls: 'border-stone-700/40 bg-stone-500/8 text-stone-500 hover:border-red-500/30 hover:bg-red-500/5 hover:text-red-400' }
+          return (
+            <button onClick={() => putHex(next.body)} disabled={saving}
+              className={`mb-4 w-full rounded-lg border px-3 py-2 text-[0.72rem] font-medium transition-all disabled:opacity-50 ${next.cls}`}>
+              {next.label}
+            </button>
+          )
+        })()}
 
         {/* GM Actions */}
         {isGm && (
@@ -1292,6 +1304,12 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                   const isParty    = hex._id === localMap.current_party_hex_id
                   const inner    = hexPoints(hex.x, hex.y, HEX_R - 1.2)
 
+                  const showTerrain = hex.is_discovered || hex.is_explored
+                  const showIcons   = hex.is_explored
+                  const fillColor   = showTerrain ? t.fill : '#0a0908'
+                  const strokeColor = isSelected ? '#f59e0b' : (showTerrain ? t.stroke : '#1c1917')
+                  const strokeW     = isSelected ? 1.8 : (showTerrain ? 0.7 : 0.3)
+
                   return (
                     <g key={hex._id}
                       onPointerEnter={() => { if (!isDragging) setHoveredHexId(hex._id) }}
@@ -1307,13 +1325,13 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                           : 'none',
                       }}>
                       <polygon points={inner}
-                        fill={hex.is_explored ? t.fill : '#0c0a08'}
-                        stroke={isSelected ? '#f59e0b' : t.stroke}
-                        strokeWidth={isSelected ? 1.8 : 0.7} />
+                        fill={fillColor}
+                        stroke={strokeColor}
+                        strokeWidth={strokeW} />
 
-                      {!hex.is_explored && (
-                        <polygon points={inner} fill="rgba(0,0,0,0.55)"
-                          stroke={t.stroke} strokeWidth={0.5} strokeDasharray="4 4" />
+                      {!hex.is_discovered && (
+                        <polygon points={inner} fill="rgba(0,0,0,0.5)"
+                          stroke="#1c1917" strokeWidth={0.3} strokeDasharray="4 4" />
                       )}
 
                       {isSelected && (
@@ -1321,7 +1339,7 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                           stroke="#f59e0b" strokeWidth={1.8} filter="url(#hexglow)" />
                       )}
 
-                      {hex.point_features.map((feat: ApiHexPointFeature, fi: number) => (
+                      {showIcons && hex.point_features.map((feat: ApiHexPointFeature, fi: number) => (
                         <text key={fi} x={hex.x} y={hex.y + (fi - (hex.point_features.length - 1) / 2) * 10}
                           textAnchor="middle" dominantBaseline="middle"
                           fontSize={feat.location_id ? 9 : 7}

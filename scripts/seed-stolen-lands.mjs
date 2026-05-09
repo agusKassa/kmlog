@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 /**
  * seed-stolen-lands.mjs
- * Seeds the Stolen Lands hex map into KMLog from the Pathfinder Kingmaker map.
+ * Seeds the Stolen Lands hex map based on the official PF Kingmaker map images.
  *
  * Usage: node scripts/seed-stolen-lands.mjs <gm_email> <gm_password>
  *
- * Grid: 14 cols × 16 rows — 1 hex = 12 miles
- * Layout:
- *   NW (q0-6,  r0-7)  → Tors de Levenies (montañas) + comienzo de Narlmarches
- *   NE (q7-13, r0-7)  → Pantano Hooktongue Slough
- *   SW (q0-6,  r8-15) → Narlmarches (bosque denso) + Lago Tuskwater/Candlemere
- *   SE (q7-13, r8-15) → Kamelands (planicies + montañas rocosas)
+ * Grid: 22 cols × 8 rows in OFFSET coordinates, converted to axial.
+ * Offset→Axial: q = col - floor(row/2),  r = row
+ * This ensures the rendered grid is rectangular, not a parallelogram.
+ *
+ * Regions (west→east):
+ *   Thousand Voices · Brantlend Mountains · Glenebon Uplands/Lowlands ·
+ *   Tiger Lords · Hooktongue Slough · Narlmarches · Greenbelt ·
+ *   Tuskwater · Kamelands · Nomen Heights · Sellen Hills · Tors de Levenies ·
+ *   Rostland Hinterlands · Dunsward
  */
 
 const API = 'https://kmlogapi-production.up.railway.app/api'
@@ -23,98 +26,114 @@ const FO = 'forest'
 const SW = 'swamp'
 const LK = 'lake'
 
-// ─── Terrain grid [r][q] — r=0 norte, q=0 oeste ──────────────────────────────
-//         q0   q1   q2   q3   q4   q5   q6     q7   q8   q9   q10  q11  q12  q13
+// ─── Terrain grid [row][col] in OFFSET coords ─────────────────────────────────
+//   row 0 = north, col 0 = west
+//   c0   c1   c2   c3   c4   c5   c6   c7   c8   c9  c10  c11  c12  c13  c14  c15  c16  c17  c18  c19  c20  c21
 const GRID = [
-  [ HI,  PL,  PL,  PL,  PL,  PL,  PL,   PL,  PL,  PL,  PL,  PL,  PL,  PL ],  // r=0
-  [ MT,  HI,  PL,  PL,  PL,  PL,  PL,   PL,  PL,  PL,  PL,  PL,  PL,  PL ],  // r=1
-  [ MT,  MT,  HI,  PL,  PL,  PL,  PL,   PL,  PL,  PL,  PL,  PL,  PL,  PL ],  // r=2
-  [ MT,  MT,  PL,  PL,  PL,  PL,  PL,   PL,  PL,  SW,  SW,  LK,  LK,  PL ],  // r=3
-  [ MT,  MT,  PL,  PL,  PL,  PL,  PL,   PL,  SW,  LK,  LK,  LK,  SW,  PL ],  // r=4
-  [ MT,  FO,  FO,  PL,  PL,  PL,  PL,   PL,  SW,  LK,  LK,  LK,  SW,  FO ],  // r=5
-  [ FO,  FO,  FO,  PL,  PL,  PL,  LK,   PL,  SW,  SW,  SW,  SW,  SW,  FO ],  // r=6
-  [ FO,  FO,  PL,  PL,  PL,  PL,  PL,   PL,  PL,  SW,  SW,  SW,  SW,  PL ],  // r=7
-  [ FO,  FO,  FO,  PL,  PL,  PL,  PL,   PL,  PL,  SW,  SW,  PL,  PL,  PL ],  // r=8
-  [ FO,  FO,  FO,  FO,  FO,  PL,  PL,   PL,  PL,  PL,  PL,  PL,  PL,  PL ],  // r=9
-  [ FO,  FO,  FO,  FO,  FO,  FO,  PL,   PL,  MT,  PL,  PL,  PL,  PL,  PL ],  // r=10
-  [ FO,  FO,  FO,  FO,  FO,  PL,  PL,   PL,  MT,  MT,  PL,  PL,  PL,  PL ],  // r=11
-  [ FO,  FO,  FO,  FO,  LK,  LK,  PL,   LK,  MT,  MT,  PL,  PL,  PL,  PL ],  // r=12
-  [ FO,  FO,  FO,  FO,  LK,  PL,  PL,   LK,  PL,  PL,  PL,  PL,  PL,  PL ],  // r=13
-  [ FO,  FO,  FO,  PL,  PL,  PL,  PL,   PL,  PL,  MT,  MT,  PL,  PL,  PL ],  // r=14
-  [ FO,  FO,  PL,  PL,  PL,  PL,  PL,   PL,  PL,  PL,  MT,  MT,  PL,  PL ],  // r=15
+  [FO,  MT,  MT,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL],  // r0
+  [FO,  MT,  MT,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  SW,  FO,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  HI,  PL],  // r1
+  [FO,  MT,  HI,  PL,  PL,  PL,  PL,  PL,  PL,  SW,  SW,  FO,  FO,  PL,  PL,  PL,  PL,  PL,  HI,  HI,  PL,  PL],  // r2
+  [FO,  FO,  HI,  PL,  PL,  PL,  PL,  PL,  SW,  LK,  SW,  FO,  FO,  FO,  PL,  PL,  HI,  HI,  HI,  HI,  MT,  PL],  // r3
+  [FO,  FO,  FO,  PL,  PL,  PL,  PL,  SW,  SW,  LK,  LK,  FO,  FO,  PL,  PL,  LK,  HI,  HI,  HI,  MT,  MT,  HI],  // r4
+  [FO,  FO,  PL,  PL,  PL,  PL,  PL,  SW,  SW,  LK,  SW,  FO,  PL,  PL,  LK,  HI,  HI,  HI,  MT,  MT,  HI,  HI],  // r5
+  [FO,  FO,  PL,  PL,  PL,  PL,  PL,  PL,  SW,  SW,  SW,  PL,  PL,  LK,  HI,  HI,  HI,  HI,  HI,  MT,  MT,  HI],  // r6
+  [FO,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  PL,  SW,  SW,  PL,  PL,  HI,  HI,  HI,  HI,  HI,  HI,  MT,  MT,  MT],  // r7
 ]
 
+const ROWS = GRID.length     // 8
+const COLS = GRID[0].length  // 22
+
+// ─── Offset → Axial ───────────────────────────────────────────────────────────
+function offsetToAxial(col, row) {
+  return { q: col - Math.floor(row / 2), r: row }
+}
+
 // ─── Regiones ─────────────────────────────────────────────────────────────────
-function getRegion(q, r, terrain) {
-  if ((terrain === MT || terrain === HI) && q <= 2) return 'Tors de Levenies'
-  if (terrain === MT && q >= 7) return 'Kamelands'
-  if (terrain === FO) return 'Narlmarches'
-  if (terrain === SW) return 'Pantano Hooktongue'
-  if (terrain === LK && r <= 7 && q >= 7) return 'Pantano Hooktongue'
-  if (terrain === LK && q === 6 && r === 6) return 'Lago del Aguijón'
-  if (terrain === LK && r >= 12 && q >= 4 && q <= 6) return 'Lago Tuskwater'
-  if (terrain === LK && r >= 12 && q === 7) return 'Lago Candlemere'
-  if (q >= 8) return 'Kamelands'
+function getRegion(col, row, terrain) {
+  // Mountains & forests of the west
+  if (col <= 2 && (terrain === MT || terrain === HI) && row <= 2) return 'Brantlend Mountains'
+  if (col <= 2 && terrain === FO) return 'Thousand Voices'
+  // Glenebon
+  if (col >= 3 && col <= 7 && row <= 2) return 'Glenebon Uplands'
+  if (col >= 3 && col <= 7 && row >= 3 && row <= 5) return 'Glenebon Lowlands'
+  // Tiger Lords (northern plains, center)
+  if (col >= 7 && col <= 10 && row <= 2 && terrain === PL) return 'Tiger Lords'
+  // Hooktongue Slough (swamp/lake, center-left)
+  if ((terrain === SW || terrain === LK) && col >= 7 && col <= 11) return 'Hooktongue Slough'
+  // Narlmarches (forest, center)
+  if (terrain === FO && col >= 10 && col <= 13) return 'Narlmarches'
+  // Rostland Hinterlands (north plains, right half)
+  if (col >= 10 && col <= 18 && row <= 1 && terrain === PL) return 'Rostland Hinterlands'
+  // Greenbelt (center)
+  if (col >= 10 && col <= 14 && row >= 2 && row <= 4 && terrain === PL) return 'Greenbelt'
+  // Tuskwater (center lake and plains)
+  if (terrain === LK && col >= 13 && col <= 15) return 'Lago Tuskwater'
+  if (col >= 13 && col <= 16 && row >= 3 && row <= 6 && terrain === PL) return 'Tuskwater'
+  // Kamelands (hills, south-center)
+  if (terrain === HI && col >= 14 && col <= 18 && row >= 3 && row <= 5) return 'Kamelands'
+  // Sellen Hills (hills, south)
+  if (terrain === HI && col >= 13 && col <= 18 && row >= 6) return 'Sellen Hills'
+  // Nomen Heights (east hills)
+  if (terrain === HI && col >= 17 && col <= 20 && row <= 5) return 'Nomen Heights'
+  // Dunsward (northeast plains)
+  if (col >= 18 && col <= 21 && row <= 2 && terrain === PL) return 'Dunsward'
+  // Tors de Levenies (east mountains)
+  if (terrain === MT && col >= 19) return 'Tors de Levenies'
   return 'Tierras Robadas'
 }
 
 // ─── Ríos y caminos ───────────────────────────────────────────────────────────
-// Edges pointy-top: 0=NE 1=E 2=SE 3=SW 4=W 5=NW
-// path: [edge_entrada, edge_salida]
+// Edges (pointy-top): 0=NE 1=E 2=SE 3=SW 4=W 5=NW
+// Keys are "col,row" in OFFSET coords
 const LINEAR = {
-  // Shrike River (Río Aguijón) — nace en las montañas, fluye al sur
-  '2,2': [{ type: 'river', path: [5, 3] }],
-  '3,3': [{ type: 'river', path: [5, 3] }],
-  '3,4': [{ type: 'river', path: [5, 2] }],
-  '4,5': [{ type: 'river', path: [5, 3] }],
-  '4,6': [{ type: 'river', path: [5, 3] }],
-  '4,7': [{ type: 'river', path: [5, 3] }],
-  '4,8': [{ type: 'river', path: [5, 2] }],
-  '5,9': [{ type: 'river', path: [5, 2] }],
-  '6,10': [{ type: 'river', path: [5, 3] }],
-  '6,11': [{ type: 'river', path: [5, 3] }],
-  // Thorn River (Río Espino) — tributario NE, desemboca en Hooktongue
-  '8,1': [{ type: 'river', path: [5, 3] }],
-  '8,2': [{ type: 'river', path: [5, 3] }],
-  '9,3': [{ type: 'river', path: [5, 3] }],
-  // Murque River — atraviesa Narlmarches hacia el sur
-  '2,9':  [{ type: 'river', path: [0, 3] }],
-  '2,10': [{ type: 'river', path: [0, 3] }],
-  '3,11': [{ type: 'river', path: [5, 3] }],
-  '3,12': [{ type: 'river', path: [5, 2] }],
-  // SE river — hacia Kamelands
-  '8,9':  [{ type: 'river', path: [5, 3] }],
-  '7,10': [{ type: 'river', path: [0, 3] }],
-  '7,11': [{ type: 'river', path: [0, 3] }],
-  '7,12': [{ type: 'river', path: [0, 2] }],
-  '8,13': [{ type: 'river', path: [5, 3] }],
-  // Old Road (Camino del Sur) — E-O en el norte
-  '2,1':  [{ type: 'road', path: [4, 1] }],
-  '3,1':  [{ type: 'road', path: [4, 1] }],
-  '4,1':  [{ type: 'road', path: [4, 1] }],
+  // Shrike River — flows south through Greenbelt toward Tuskwater
+  '12,1': [{ type: 'river', path: [0, 3] }],
+  '12,2': [{ type: 'river', path: [0, 3] }],
+  '12,3': [{ type: 'river', path: [0, 2] }],
+  '13,4': [{ type: 'river', path: [5, 2] }],
+  // Thorn River — flows through upper Narlmarches
+  '11,2': [{ type: 'river', path: [0, 3] }],
+  '11,3': [{ type: 'river', path: [0, 3] }],
+  // Murque River — through Narlmarches south
+  '11,4': [{ type: 'river', path: [0, 3] }],
+  '11,5': [{ type: 'river', path: [0, 3] }],
+  // Skunk River — through Kamelands to Tuskwater
+  '16,3': [{ type: 'river', path: [5, 3] }],
+  '16,4': [{ type: 'river', path: [5, 3] }],
+  '15,5': [{ type: 'river', path: [5, 3] }],
+  // Sellen River — along Nomen Heights
+  '18,3': [{ type: 'river', path: [5, 3] }],
+  '18,4': [{ type: 'river', path: [5, 3] }],
+  '17,5': [{ type: 'river', path: [5, 3] }],
+  '17,6': [{ type: 'river', path: [5, 3] }],
+  // Old Road — east-west through center
   '5,1':  [{ type: 'road', path: [4, 1] }],
   '6,1':  [{ type: 'road', path: [4, 1] }],
   '7,1':  [{ type: 'road', path: [4, 1] }],
-  '8,0':  [{ type: 'road', path: [4, 1] }],
-  '9,0':  [{ type: 'road', path: [4, 1] }],
-  '10,0': [{ type: 'road', path: [4, 1] }],
-  '11,0': [{ type: 'road', path: [4, 1] }],
+  '8,1':  [{ type: 'road', path: [4, 1] }],
+  '9,1':  [{ type: 'road', path: [4, 1] }],
+  '10,1': [{ type: 'road', path: [4, 1] }],
+  '11,1': [{ type: 'road', path: [4, 1] }],
+  '12,0': [{ type: 'road', path: [4, 1] }],
+  '13,0': [{ type: 'road', path: [4, 1] }],
 }
 
 // ─── Build hex array ──────────────────────────────────────────────────────────
 function buildHexes() {
   const hexes = []
-  for (let r = 0; r < 16; r++) {
-    for (let q = 0; q < 14; q++) {
-      const terrain = GRID[r][q]
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const terrain = GRID[row][col]
+      const { q, r } = offsetToAxial(col, row)
       hexes.push({
         q,
         r,
         terrain,
-        region: getRegion(q, r, terrain),
+        region: getRegion(col, row, terrain),
+        is_discovered: false,
         is_explored: false,
         point_features: [],
-        linear_features: LINEAR[`${q},${r}`] ?? [],
+        linear_features: LINEAR[`${col},${row}`] ?? [],
       })
     }
   }
@@ -148,7 +167,27 @@ async function main() {
     Authorization: `Bearer ${access_token}`,
   }
 
-  // 2. Create map
+  // 2. Delete existing map(s) named "Tierras Robadas"
+  process.stdout.write('Verificando mapas existentes... ')
+  const mapsRes = await fetch(`${API}/maps`, { headers })
+  if (mapsRes.ok) {
+    const maps = await mapsRes.json()
+    const existing = maps.filter(m => m.name === 'Tierras Robadas')
+    if (existing.length > 0) {
+      console.log(`encontrado(s): ${existing.length}`)
+      for (const m of existing) {
+        process.stdout.write(`  Eliminando mapa ${m._id}... `)
+        const delRes = await fetch(`${API}/maps/${m._id}`, { method: 'DELETE', headers })
+        console.log(delRes.ok ? '✓' : `⚠ ${delRes.status}`)
+      }
+    } else {
+      console.log('ninguno previo')
+    }
+  } else {
+    console.log('(no se pudo verificar, continuando)')
+  }
+
+  // 3. Create map
   process.stdout.write('Creando mapa... ')
   const mapRes = await fetch(`${API}/maps`, {
     method: 'POST',
@@ -157,8 +196,8 @@ async function main() {
       name: 'Tierras Robadas',
       hex_config: {
         hex_size_px: 64,
-        cols: 14,
-        rows: 16,
+        cols: COLS,
+        rows: ROWS,
         hex_size_miles: 12,
         travel_hours_per_day: 8,
         party_speed_ft: 25,
@@ -173,9 +212,9 @@ async function main() {
   const map = await mapRes.json()
   console.log(`✓  (id: ${map._id})`)
 
-  // 3. Bulk import hexes
+  // 4. Bulk import hexes
   const hexes = buildHexes()
-  process.stdout.write(`Importando ${hexes.length} hexes... `)
+  process.stdout.write(`Importando ${hexes.length} hexes (${COLS}×${ROWS})... `)
   const importRes = await fetch(`${API}/maps/${map._id}/hexes/import`, {
     method: 'POST',
     headers,
@@ -188,8 +227,17 @@ async function main() {
   const { inserted, updated } = await importRes.json()
   console.log(`✓  (${inserted} insertados, ${updated} actualizados)`)
 
-  console.log('\n✓ Seed completo. El mapa está listo en KMLog.')
-  console.log(`  Mapa ID: ${map._id}`)
+  console.log('\n✓ Seed completo.')
+  console.log(`  Mapa ID : ${map._id}`)
+  console.log(`  Grid    : ${COLS} cols × ${ROWS} rows = ${hexes.length} hexes`)
+  console.log(`  Escala  : 12 millas/hex`)
+  console.log('')
+  console.log('  Regiones:')
+  const regionCounts = {}
+  hexes.forEach(h => { regionCounts[h.region] = (regionCounts[h.region] ?? 0) + 1 })
+  Object.entries(regionCounts).sort(([,a],[,b]) => b-a).forEach(([r, n]) => {
+    console.log(`    ${n.toString().padStart(3)} hexes — ${r}`)
+  })
 }
 
 main().catch((err) => {
