@@ -9,11 +9,10 @@ import { useAuth } from '@/hooks/use-auth'
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
 
 const navLinks = [
-  { href: '/sessions',   label: 'Sesiones',   icon: Scroll },
-  { href: '/characters', label: 'Personajes',  icon: Users },
-  { href: '/map',        label: 'Mapa',        icon: Map },
-  { href: '/npcs',       label: 'NPCs',        icon: Ghost },
-  { href: '/notes',      label: 'Notas',       icon: StickyNote },
+  { href: '/sessions',   label: 'Sesiones',  icon: Scroll },
+  { href: '/map',        label: 'Mapa',       icon: Map },
+  { href: '/characters', label: 'Personajes', icon: Users },
+  { href: '/npcs',       label: 'NPCs',       icon: Ghost },
 ]
 
 const AUTH_PATHS = ['/login', '/register']
@@ -155,6 +154,14 @@ export function Navbar() {
                           Personajes
                         </Link>
                       )}
+                      <Link href="/notes"
+                        className={`flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] transition-colors hover:bg-[#141210] ${
+                          pathname.startsWith('/notes') ? 'text-amber-400' : 'text-stone-400 hover:text-stone-100'
+                        }`}
+                      >
+                        <StickyNote className="h-3.5 w-3.5 text-amber-500/70" />
+                        Mis notas
+                      </Link>
                       {isGm && (
                         <Link href="/gm"
                           className={`flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] transition-colors hover:bg-[#141210] ${
