@@ -36,7 +36,13 @@ export class CharactersController {
   @Get(':id')
   @UseGuards(OptionalJwtGuard)
   findOne(@Param('id') id: string, @CurrentUser() user: UserDocument | null) {
-    return this.charactersService.findById(id, user?.role === 'gm')
+    return this.charactersService.findById(id, user?.role === 'gm', user ? String(user._id) : null)
+  }
+
+  @Post(':id/sync')
+  @UseGuards(JwtAuthGuard)
+  sync(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+    return this.charactersService.sync(id, String(user._id), user.role === 'gm')
   }
 
   // ── Authenticated ─────────────────────────────────────────────────────────

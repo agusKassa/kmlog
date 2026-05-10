@@ -22,10 +22,25 @@ export class Character {
   public_bio: string
 
   @Prop({ type: String, default: '' })
+  backstory: string
+
+  @Prop({ type: String, default: '' })
   gm_notes: string
 
   @Prop({ type: Boolean, default: true })
   is_active: boolean
+
+  @Prop({ type: Boolean, default: true })
+  is_alive: boolean
+
+  @Prop({ type: Boolean, default: true })
+  in_party: boolean
+
+  @Prop({ type: Number, default: null })
+  current_hp: number | null
+
+  @Prop({ type: Date, default: null })
+  last_synced_at: Date | null
 }
 
 export const CharacterSchema = SchemaFactory.createForClass(Character)

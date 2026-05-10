@@ -13,7 +13,7 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service'
 import { ImportByIdDto, ImportByJsonDto, ImportForUserDto, ImportJsonForUserDto } from './dto/import-character.dto'
 import { UpdateCharacterDto, UpdateGmNotesDto } from './dto/update-character.dto'
 
-const PUBLIC_PROJECTION = { gm_notes: 0 } as const
+const PUBLIC_PROJECTION = { gm_notes: 0, pathbuilder_id: 0 } as const
 
 interface PathbuilderResponse {
   success: boolean
@@ -35,11 +35,57 @@ export class CharactersService {
       .exec()
   }
 
-  async findById(id: string, isGm: boolean): Promise<CharacterDocument> {
-    const projection = isGm ? {} : PUBLIC_PROJECTION
-    const character = await this.characterModel.findById(id, projection).exec()
+  async findById(id: string, isGm: boolean, requesterId: string | null = null): Promise<Record<string, unknown>> {
+    const raw = await this.characterModel
+      .findById(id)
+      .populate('user_id', 'username')
+      .exec()
+    if (!raw) throw new NotFoundException('Character not found')
+
+    const obj = raw.toObject() as unknown as Record<string, unknown>
+    const has_pathbuilder_id = !!obj.pathbuilder_id
+    delete obj.pathbuilder_id
+    obj.has_pathbuilder_id = has_pathbuilder_id
+
+    if (!isGm) {
+      delete obj.gm_notes
+      const userIdField = obj.user_id as unknown
+      const populatedId = userIdField && typeof userIdField === 'object'
+        ? String((userIdField as { _id: unknown })._id)
+        : String(userIdField)
+      const isOwner = requesterId && populatedId === requesterId
+      if (!isOwner) {
+        delete obj.backstory
+      }
+    }
+
+    return obj
+  }
+
+  async sync(id: string, requesterId: string, isGm: boolean): Promise<CharacterDocument> {
+    const character = await this.characterModel.findById(id).exec()
     if (!character) throw new NotFoundException('Character not found')
-    return character
+    if (!isGm && String(character.user_id) !== requesterId) throw new ForbiddenException()
+    if (!character.pathbuilder_id) throw new BadRequestException('No Pathbuilder ID stored for this character')
+
+    const url = `https://pathbuilder2e.com/json.php?id=${character.pathbuilder_id}`
+    let data: PathbuilderResponse
+
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'kmlog/1.0' } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      data = await res.json() as PathbuilderResponse
+    } catch {
+      throw new BadRequestException('Could not reach Pathbuilder. Try importing by JSON.')
+    }
+
+    if (!data.success) throw new BadRequestException('Pathbuilder ID not found or not public.')
+
+    const updated = await this.characterModel
+      .findByIdAndUpdate(id, { build: data.build, last_synced_at: new Date() }, { new: true, projection: PUBLIC_PROJECTION })
+      .exec()
+
+    return updated!
   }
 
   async importById(userId: string, dto: ImportByIdDto): Promise<CharacterDocument> {

@@ -103,7 +103,13 @@ export interface ApiCharacter {
   _id: string
   portrait_url: string | null
   public_bio: string
+  backstory?: string
   is_active: boolean
+  is_alive: boolean
+  in_party: boolean
+  current_hp: number | null
+  last_synced_at: string | null
+  has_pathbuilder_id?: boolean
   user_id: { _id: string; username: string } | string
   build: PathbuilderBuild
 }
@@ -213,7 +219,7 @@ export const api = {
   },
   characters: {
     findAll: () => apiFetch<ApiCharacter[]>('/characters', { next: { revalidate: 0 } }),
-    findById: (id: string) => apiFetch<ApiCharacter>(`/characters/${id}`),
+    findById: (id: string) => apiFetch<ApiCharacter>(`/characters/${id}`, { next: { revalidate: 0 } }),
   },
   partyState: {
     get: () => apiFetch<ApiPartyState>('/party-state'),

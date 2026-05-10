@@ -16,6 +16,7 @@ function CharacterCard({ character, index }: { character: ApiCharacter; index: n
   const accent = charAccents[index % charAccents.length]
   const initial = character.build.name.charAt(0).toUpperCase()
   const playerName = typeof character.user_id === 'object' ? character.user_id.username : null
+  const isDead = character.is_alive === false
 
   return (
     <Link
@@ -30,13 +31,22 @@ function CharacterCard({ character, index }: { character: ApiCharacter; index: n
           <img
             src={character.portrait_url}
             alt={character.build.name}
-            className="h-full w-full object-cover object-top"
+            className={`h-full w-full object-cover object-top ${isDead ? 'grayscale' : ''}`}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center">
+          <div className={`flex h-full w-full items-center justify-center ${isDead ? 'grayscale' : ''}`}>
             <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 font-display text-[1.5rem] font-bold ${accent.ring}`}>
               {initial}
             </div>
+          </div>
+        )}
+
+        {/* Dead overlay */}
+        {isDead && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+            <span className="rounded border border-stone-500/40 bg-stone-900/80 px-2.5 py-1 text-[0.62rem] font-bold uppercase tracking-[0.15em] text-stone-400">
+              Muerto
+            </span>
           </div>
         )}
 

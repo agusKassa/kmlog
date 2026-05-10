@@ -129,7 +129,9 @@ function PartyWidget({ state }: { state: ApiPartyState | null }) {
 }
 
 function CharacterStrip({ characters }: { characters: ApiCharacter[] }) {
-  if (characters.length === 0) {
+  const partyMembers = characters.filter(c => c.in_party !== false)
+
+  if (partyMembers.length === 0) {
     return (
       <EmptyState
         icon="⚔️"
@@ -141,10 +143,11 @@ function CharacterStrip({ characters }: { characters: ApiCharacter[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {characters.map((c, i) => {
+      {partyMembers.map((c, i) => {
         const accent = charAccents[i % charAccents.length]
         const initial = c.build.name.charAt(0).toUpperCase()
         const playerName = typeof c.user_id === 'object' ? c.user_id.username : '—'
+        const isDead = c.is_alive === false
 
         return (
           <Link
@@ -159,19 +162,26 @@ function CharacterStrip({ characters }: { characters: ApiCharacter[] }) {
                 <img
                   src={c.portrait_url}
                   alt={c.build.name}
-                  className="h-full w-full object-cover object-top"
+                  className={`h-full w-full object-cover object-top transition-all ${isDead ? 'grayscale' : ''}`}
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center">
+                <div className={`flex h-full w-full items-center justify-center ${isDead ? 'grayscale' : ''}`}>
                   <div className={`flex h-14 w-14 items-center justify-center rounded-full border-2 font-display text-[1.3rem] font-bold ${accent.ring}`}>
                     {initial}
                   </div>
                 </div>
               )}
+              {isDead && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <span className="rounded border border-stone-500/40 bg-stone-900/80 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-[0.15em] text-stone-400">
+                    Muerto
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="p-3">
-              <div className="font-display mb-0.5 truncate text-[0.82rem] font-semibold tracking-[0.04em] text-stone-100 transition-colors group-hover:text-amber-400">
+              <div className={`font-display mb-0.5 truncate text-[0.82rem] font-semibold tracking-[0.04em] transition-colors group-hover:text-amber-400 ${isDead ? 'text-stone-500' : 'text-stone-100'}`}>
                 {c.build.name}
               </div>
               <div className="mb-1.5 flex items-center justify-between">
