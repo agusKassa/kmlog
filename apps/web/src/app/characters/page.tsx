@@ -24,7 +24,7 @@ function CharacterCard({ character, index }: { character: ApiCharacter; index: n
       style={{ animation: `fade-in-left 0.5s ease both ${index * 0.07}s` }}
     >
       {/* Portrait */}
-      <div className={`relative flex aspect-[3/4] items-center justify-center bg-gradient-to-br ${accent.bg} overflow-hidden`}>
+      <div className={`relative aspect-[3/4] overflow-hidden bg-gradient-to-br ${accent.bg}`}>
         {character.portrait_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -33,8 +33,10 @@ function CharacterCard({ character, index }: { character: ApiCharacter; index: n
             className="h-full w-full object-cover object-top"
           />
         ) : (
-          <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 font-display text-[1.5rem] font-bold ${accent.ring}`}>
-            {initial}
+          <div className="flex h-full w-full items-center justify-center">
+            <div className={`flex h-16 w-16 items-center justify-center rounded-full border-2 font-display text-[1.5rem] font-bold ${accent.ring}`}>
+              {initial}
+            </div>
           </div>
         )}
 

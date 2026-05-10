@@ -153,7 +153,7 @@ function CharacterStrip({ characters }: { characters: ApiCharacter[] }) {
             className="group overflow-hidden rounded-xl border border-[#2a2826] bg-[#181412] transition-all hover:-translate-y-0.5 hover:border-amber-500/25 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
             style={{ animation: `fade-in-left 0.5s ease both ${0.4 + i * 0.06}s` }}
           >
-            <div className={`relative flex aspect-[4/3] items-center justify-center bg-gradient-to-br ${accent.bg}`}>
+            <div className={`relative aspect-[4/3] overflow-hidden bg-gradient-to-br ${accent.bg}`}>
               {c.portrait_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -162,8 +162,10 @@ function CharacterStrip({ characters }: { characters: ApiCharacter[] }) {
                   className="h-full w-full object-cover object-top"
                 />
               ) : (
-                <div className={`flex h-14 w-14 items-center justify-center rounded-full border-2 font-display text-[1.3rem] font-bold ${accent.ring}`}>
-                  {initial}
+                <div className="flex h-full w-full items-center justify-center">
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-full border-2 font-display text-[1.3rem] font-bold ${accent.ring}`}>
+                    {initial}
+                  </div>
                 </div>
               )}
             </div>
