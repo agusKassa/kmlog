@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { api, abilityMod, fmtMod, type PathbuilderBuild, type PathbuilderWeapon } from '@/lib/api'
+import { PortraitUploader } from '../_components/portrait-uploader'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
 
   const build = character.build
   const playerName = typeof character.user_id === 'object' ? character.user_id.username : null
+  const ownerId = typeof character.user_id === 'object' ? character.user_id._id : character.user_id
   const maxHp = calcMaxHp(build)
   const speed = build.attributes.speed + (build.attributes.speedBonus ?? 0)
   const wornArmor = build.armor.find(a => a.worn) ?? null
@@ -125,24 +127,12 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
           <div className="flex flex-col gap-0 md:flex-row">
 
             {/* Portrait */}
-            <div className="relative w-full shrink-0 md:w-56 lg:w-72">
-              {character.portrait_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={character.portrait_url}
-                  alt={build.name}
-                  className="h-64 w-full object-cover object-top md:h-full"
-                  style={{ minHeight: '280px', maxHeight: '380px' }}
-                />
-              ) : (
-                <div className="flex h-64 w-full items-center justify-center bg-gradient-to-br from-amber-950 to-stone-900 md:h-full" style={{ minHeight: '280px' }}>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-500/10 font-display text-[2rem] font-bold text-amber-400">
-                    {build.name.charAt(0)}
-                  </div>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#0c0a09] opacity-60 md:opacity-100" />
-            </div>
+            <PortraitUploader
+              characterId={character._id}
+              ownerId={ownerId}
+              portraitUrl={character.portrait_url}
+              name={build.name}
+            />
 
             {/* Info */}
             <div className="relative flex flex-1 flex-col justify-end px-6 py-8 md:px-8 md:py-10" style={{ animation: 'fade-up 0.5s ease both' }}>
