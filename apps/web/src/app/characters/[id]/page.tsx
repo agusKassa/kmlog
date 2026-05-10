@@ -13,15 +13,17 @@ function calcMaxHp(build: PathbuilderBuild): number {
   return build.attributes.ancestryhp + perLevel * build.level
 }
 
+// Pathbuilder almacena los rangos como bonus directo (0/2/4/6/8), no como
+// ordinal (0/1/2/3/4). Para calcular el bonus total: rank + level si rank > 0.
 function profBonus(rank: number, level: number): number {
-  return rank > 0 ? rank * 2 + level : 0
+  return rank > 0 ? rank + level : 0
 }
 
 function fmtBonus(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`
 }
 
-const RANK_LABEL: Record<number, string> = { 1: 'T', 2: 'E', 3: 'M', 4: 'L' }
+const RANK_LABEL: Record<number, string> = { 2: 'T', 4: 'E', 6: 'M', 8: 'L' }
 
 const ABILITY_LABELS: Record<string, string> = {
   str: 'FUE', dex: 'DES', con: 'CON', int: 'INT', wis: 'SAB', cha: 'CAR',
