@@ -3,31 +3,30 @@
 import { useState, useEffect } from 'react'
 
 const QUOTES = [
-  { text: 'All we have to decide is what to do with the time that is given us.', character: 'Gandalf', work: 'El Señor de los Anillos' },
-  { text: 'Even the smallest person can change the course of the future.', character: 'Galadriel', work: 'El Señor de los Anillos' },
-  { text: "I can't carry it for you, but I can carry you!", character: 'Samwise Gamgee', work: 'El Señor de los Anillos' },
-  { text: 'Not all those who wander are lost.', character: 'Bilbo Bolsón', work: 'El Señor de los Anillos' },
-  { text: "There's some good in this world, Mr. Frodo, and it's worth fighting for.", character: 'Samwise Gamgee', work: 'El Señor de los Anillos' },
-  { text: 'I am looking for someone to share in an adventure that I am arranging.', character: 'Gandalf', work: 'El Hobbit' },
-  { text: 'Do or do not. There is no try.', character: 'Yoda', work: 'Star Wars' },
-  { text: 'The Force will be with you. Always.', character: 'Obi-Wan Kenobi', work: 'Star Wars' },
-  { text: 'In my experience, there is no such thing as luck.', character: 'Obi-Wan Kenobi', work: 'Star Wars' },
-  { text: 'Your focus determines your reality.', character: 'Qui-Gon Jinn', work: 'Star Wars' },
-  { text: 'It is our choices that show what we truly are, far more than our abilities.', character: 'Albus Dumbledore', work: 'Harry Potter' },
-  { text: 'Happiness can be found even in the darkest of times, if one only remembers to turn on the light.', character: 'Albus Dumbledore', work: 'Harry Potter' },
-  { text: 'It does not do to dwell on dreams and forget to live.', character: 'Albus Dumbledore', work: 'Harry Potter' },
-  { text: 'We are only as strong as we are united, as weak as we are divided.', character: 'Albus Dumbledore', work: 'Harry Potter' },
-  { text: 'I must not fear. Fear is the mind-killer. Fear is the little death that brings total obliteration.', character: 'Paul Atreides', work: 'Dune' },
-  { text: 'The mystery of life is not a problem to solve, but a reality to experience.', character: 'Frank Herbert', work: 'Dune' },
-  { text: 'When you play the game of thrones, you win or you die.', character: 'Cersei Lannister', work: 'Game of Thrones' },
-  { text: 'The man who passes the sentence should swing the sword.', character: 'Eddard Stark', work: 'Game of Thrones' },
-  { text: 'A reader lives a thousand lives before he dies. The man who never reads lives only one.', character: 'Jojen Reed', work: 'Game of Thrones' },
-  { text: 'Evil is evil. Lesser, greater, middling — it makes no difference. The degree is arbitary, the definitions blurred.', character: 'Geralt de Rivia', work: 'The Witcher' },
-  { text: "If I'm to choose between one evil and another, I'd rather not choose at all.", character: 'Geralt de Rivia', work: 'The Witcher' },
-  { text: "Course he isn't safe. But he's good. He's the King, I tell you.", character: 'Sr. Castor', work: 'Las Crónicas de Narnia' },
-  { text: 'To the well-organized mind, death is but the next great adventure.', character: 'Albus Dumbledore', work: 'Harry Potter' },
-  { text: 'Home is behind, the world ahead, and there are many paths to tread.', character: 'Pippin Tuk', work: 'El Señor de los Anillos' },
-  { text: 'Wars are not won by fighting battles; wars are won by choosing battles.', character: 'George R.R. Martin', work: 'A Song of Ice and Fire' },
+  { text: 'Todo lo que tenemos que decidir es qué hacer con el tiempo que nos fue dado.', character: 'Gandalf', work: 'El Señor de los Anillos' },
+  { text: 'Hasta la persona más pequeña puede cambiar el curso del futuro.', character: 'Galadriel', work: 'El Señor de los Anillos' },
+  { text: 'No puedo cargarlo por ti, pero puedo cargarte a ti.', character: 'Samwise Gamgee', work: 'El Señor de los Anillos' },
+  { text: 'No todos los que vagan están perdidos.', character: 'Bilbo Bolsón', work: 'El Señor de los Anillos' },
+  { text: 'Hay algo bueno en este mundo, señor Frodo, y vale la pena luchar por ello.', character: 'Samwise Gamgee', work: 'El Señor de los Anillos' },
+  { text: 'El hogar queda atrás, el mundo por delante, y hay muchos caminos por recorrer.', character: 'Pippin Tuk', work: 'El Señor de los Anillos' },
+  { text: 'Busco a alguien con quien compartir una aventura que estoy organizando.', character: 'Gandalf', work: 'El Hobbit' },
+  { text: 'Hazlo o no lo hagas. No existe el intentar.', character: 'Yoda', work: 'Star Wars' },
+  { text: 'La Fuerza estará contigo. Siempre.', character: 'Obi-Wan Kenobi', work: 'Star Wars' },
+  { text: 'En mi experiencia, la suerte no existe.', character: 'Obi-Wan Kenobi', work: 'Star Wars' },
+  { text: 'Tu enfoque determina tu realidad.', character: 'Qui-Gon Jinn', work: 'Star Wars' },
+  { text: 'Son nuestras decisiones las que muestran lo que verdaderamente somos, mucho más que nuestras habilidades.', character: 'Albus Dumbledore', work: 'Harry Potter' },
+  { text: 'La felicidad puede hallarse incluso en los momentos más oscuros, si uno recuerda encender la luz.', character: 'Albus Dumbledore', work: 'Harry Potter' },
+  { text: 'No sirve de nada aferrarse a los sueños y olvidarse de vivir.', character: 'Albus Dumbledore', work: 'Harry Potter' },
+  { text: 'Para una mente bien organizada, la muerte no es más que la siguiente gran aventura.', character: 'Albus Dumbledore', work: 'Harry Potter' },
+  { text: 'Solo somos tan fuertes como lo estamos unidos, tan débiles como lo estamos divididos.', character: 'Albus Dumbledore', work: 'Harry Potter' },
+  { text: 'No debo temer. El miedo es el asesino de la mente. El miedo es la pequeña muerte que conduce a la destrucción total.', character: 'Paul Atreides', work: 'Dune' },
+  { text: 'El misterio de la vida no es un problema por resolver, sino una realidad por experimentar.', character: 'Frank Herbert', work: 'Dune' },
+  { text: 'Cuando juegas al juego de tronos, ganas o mueres.', character: 'Cersei Lannister', work: 'Game of Thrones' },
+  { text: 'El hombre que dicta la sentencia debe blandir la espada.', character: 'Eddard Stark', work: 'Game of Thrones' },
+  { text: 'Un lector vive mil vidas antes de morir. El hombre que nunca lee vive solo una.', character: 'Jojen Reed', work: 'Game of Thrones' },
+  { text: 'El mal es el mal. Menor, mayor, mediocre — la diferencia es arbitraria, las definiciones difusas.', character: 'Geralt de Rivia', work: 'The Witcher' },
+  { text: 'Si debo elegir entre un mal y otro, prefiero no elegir en absoluto.', character: 'Geralt de Rivia', work: 'The Witcher' },
+  { text: 'Claro que no es manso. Pero es bueno. Es el Rey, te digo.', character: 'Señor Castor', work: 'Las Crónicas de Narnia' },
 ]
 
 export function LoginQuote() {
@@ -38,15 +37,15 @@ export function LoginQuote() {
   }, [])
 
   return (
-    <div className="text-center">
-      <p className="font-body mx-auto max-w-[300px] text-[1.05rem] italic leading-[1.85] text-stone-300">
+    <div className="mx-auto max-w-[300px] text-left">
+      <p className="font-body text-[1.15rem] italic leading-[1.9] text-stone-300">
         &ldquo;{quote.text}&rdquo;
       </p>
-      <div className="mt-4 flex flex-col items-center gap-0.5">
-        <span className="font-display text-[0.72rem] font-semibold tracking-[0.1em] text-amber-500">
-          {quote.character}
+      <div className="mt-5 text-right">
+        <span className="font-body text-[0.88rem] text-stone-400">
+          &mdash; {quote.character},&nbsp;
         </span>
-        <span className="text-[0.62rem] uppercase tracking-[0.15em] text-stone-600">
+        <span className="font-body text-[0.82rem] italic text-stone-600">
           {quote.work}
         </span>
       </div>
