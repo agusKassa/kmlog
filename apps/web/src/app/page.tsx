@@ -257,10 +257,10 @@ export default async function HomePage() {
         <div>
           <div className="mb-6 flex items-baseline justify-between">
             <span className="font-display text-[0.72rem] font-semibold uppercase tracking-[0.25em] text-stone-500">
-              Últimas sesiones
+              Última sesión
             </span>
             {sessions && sessions.length > 0 && (
-              <Link href="/sessions" className="text-[0.75rem] text-stone-600 transition-colors hover:text-amber-500">
+              <Link href="/sessions" className="text-[0.75rem] font-medium text-amber-500 transition-colors hover:text-amber-400">
                 Ver todas →
               </Link>
             )}
@@ -273,7 +273,7 @@ export default async function HomePage() {
               description="No se pudo conectar con el servidor. Intentá recargar la página."
             />
           ) : (
-            <SessionsList sessions={sessions} />
+            <SessionsList sessions={sessions.slice(0, 1)} />
           )}
         </div>
 
@@ -294,8 +294,8 @@ export default async function HomePage() {
               La Party
             </span>
             {characters && characters.length > 0 && (
-              <Link href="/characters" className="text-[0.75rem] text-stone-600 transition-colors hover:text-amber-500">
-                Todas las fichas →
+              <Link href="/characters" className="text-[0.75rem] font-medium text-amber-500 transition-colors hover:text-amber-400">
+                Ver todos los personajes →
               </Link>
             )}
           </div>

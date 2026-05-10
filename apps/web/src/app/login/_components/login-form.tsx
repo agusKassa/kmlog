@@ -3,11 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Role = 'gm' | 'player'
-
 export function LoginForm() {
   const router = useRouter()
-  const [role, setRole] = useState<Role>('gm')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -59,33 +56,6 @@ export function LoginForm() {
           <p className="font-body text-[1rem] text-stone-400">
             Accedé a la bitácora de campaña
           </p>
-        </div>
-
-        {/* Role toggle */}
-        <div className="mb-7 grid grid-cols-2 gap-0 rounded-lg border border-[#3c3330] bg-[#181412] p-1">
-          {(['gm', 'player'] as Role[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRole(r)}
-              className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2.5 text-[0.75rem] font-medium uppercase tracking-[0.08em] transition-all ${
-                role === r
-                  ? 'border border-amber-500/20 bg-amber-500/10 text-amber-500'
-                  : 'text-stone-600 hover:bg-stone-800/40 hover:text-stone-300'
-              }`}
-            >
-              {r === 'gm' ? (
-                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                </svg>
-              ) : (
-                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                </svg>
-              )}
-              {r === 'gm' ? 'Dungeon Master' : 'Jugador'}
-            </button>
-          ))}
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

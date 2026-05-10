@@ -1,4 +1,5 @@
 import { LoginForm } from './_components/login-form'
+import { LoginQuote } from './_components/login-quote'
 
 export const metadata = { title: 'KMLog — Ingresar' }
 
@@ -83,11 +84,7 @@ export default function LoginPage() {
             <div className="h-px flex-1" style={{ background: 'linear-gradient(to left, transparent, rgba(245,158,11,0.35))' }} />
           </div>
 
-          <p className="font-body mx-auto max-w-[280px] text-[1.2rem] italic leading-[1.8] text-stone-400">
-            La crónica aguarda.<br />
-            Cada sesión, un capítulo.<br />
-            Cada decisión, historia.
-          </p>
+          <LoginQuote />
 
           <div className="mx-auto mb-0 mt-6 flex max-w-[240px] items-center gap-4">
             <div className="h-px flex-1" style={{ background: 'linear-gradient(to right, transparent, rgba(245,158,11,0.35))' }} />

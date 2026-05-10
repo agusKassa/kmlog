@@ -28,9 +28,9 @@ function StatCard({ label, score }: { label: string; score: number }) {
   const modStr = mod >= 0 ? `+${mod}` : `${mod}`
   return (
     <div className="flex flex-col items-center rounded-lg border border-[#2a2826] bg-[#181412] px-3 py-3.5 text-center">
-      <div className="mb-1 text-[0.58rem] font-semibold uppercase tracking-[0.18em] text-stone-600">{label}</div>
-      <div className="font-display text-[1.4rem] font-bold leading-none text-stone-100">{modStr}</div>
-      <div className="mt-1 text-[0.65rem] text-stone-600">{score}</div>
+      <div className="mb-1 text-[0.58rem] font-semibold uppercase tracking-[0.18em] text-stone-500">{label}</div>
+      <div className="font-display text-[1.4rem] font-bold leading-none text-amber-400">{modStr}</div>
+      <div className="mt-1 text-[0.68rem] text-stone-400">{score}</div>
     </div>
   )
 }
@@ -39,7 +39,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-4 flex items-center gap-3">
       <div className="h-px flex-1 bg-[#2a2826]" />
-      <span className="font-display text-[0.6rem] font-semibold uppercase tracking-[0.22em] text-stone-600">
+      <span className="font-display text-[0.7rem] font-bold uppercase tracking-[0.2em] text-stone-400">
         {children}
       </span>
       <div className="h-px flex-1 bg-[#2a2826]" />
