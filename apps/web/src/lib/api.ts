@@ -212,7 +212,7 @@ export const api = {
     findById: (id: string) => apiFetch<ApiSession>(`/sessions/${id}`),
   },
   characters: {
-    findAll: () => apiFetch<ApiCharacter[]>('/characters'),
+    findAll: () => apiFetch<ApiCharacter[]>('/characters', { next: { revalidate: 0 } }),
     findById: (id: string) => apiFetch<ApiCharacter>(`/characters/${id}`),
   },
   partyState: {
