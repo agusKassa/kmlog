@@ -8,7 +8,6 @@ import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
 import type { PathbuilderBuild } from '@kmlog/types'
 import { Character, CharacterDocument } from './schemas/character.schema'
-import { UsersService } from '../users/users.service'
 import { CloudinaryService } from '../cloudinary/cloudinary.service'
 import { ImportByIdDto, ImportByJsonDto, ImportForUserDto, ImportJsonForUserDto } from './dto/import-character.dto'
 import { UpdateCharacterDto, UpdateGmNotesDto } from './dto/update-character.dto'
@@ -24,7 +23,6 @@ interface PathbuilderResponse {
 export class CharactersService {
   constructor(
     @InjectModel(Character.name) private characterModel: Model<CharacterDocument>,
-    private usersService: UsersService,
     private cloudinaryService: CloudinaryService,
   ) {}
 
@@ -180,18 +178,11 @@ export class CharactersService {
     build: PathbuilderBuild,
     pathbuilder_id: number | null,
   ): Promise<CharacterDocument> {
-    // Deactivate any previous active character for this user
-    await this.characterModel.updateMany({ user_id: userId, is_active: true }, { is_active: false })
-
-    const character = await this.characterModel.create({
+    return this.characterModel.create({
       user_id: userId,
       build,
       pathbuilder_id,
       is_active: true,
     })
-
-    await this.usersService.updateCharacterId(userId, String(character._id))
-
-    return character
   }
 }
