@@ -1,8 +1,10 @@
-import { Controller, Get, Request, UseGuards } from '@nestjs/common'
+import { Controller, Get, UseGuards } from '@nestjs/common'
 import { UsersService } from './users.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
+import { CurrentUser } from '../auth/decorators/current-user.decorator'
+import type { UserDocument } from './schemas/user.schema'
 
 @Controller('users')
 export class UsersController {
@@ -10,9 +12,7 @@ export class UsersController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async findMe(@Request() req: { user: { sub: string } }) {
-    const user = await this.usersService.findById(req.user.sub)
-    if (!user) return null
+  findMe(@CurrentUser() user: UserDocument) {
     return {
       _id: user._id,
       email: user.email,

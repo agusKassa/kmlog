@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { RefreshCw, Loader2 } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
 
@@ -21,19 +20,15 @@ interface Props {
   inParty: boolean
   currentHp: number | null
   maxHp: number
-  lastSyncedAt: string | null
-  pathbuilderId: boolean
 }
 
-export function CharacterControls({ characterId, ownerId, isAlive, inParty, currentHp, maxHp, lastSyncedAt, pathbuilderId }: Props) {
-  const [canEdit, setCanEdit]     = useState(false)
-  const [alive, setAlive]         = useState(isAlive)
-  const [party, setParty]         = useState(inParty)
-  const [hp, setHp]               = useState<number>(currentHp ?? maxHp)
-  const [syncing, setSyncing]     = useState(false)
-  const [syncedAt, setSyncedAt]   = useState(lastSyncedAt)
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+export function CharacterControls({ characterId, ownerId, isAlive, inParty, currentHp, maxHp }: Props) {
+  const [canEdit, setCanEdit] = useState(false)
+  const [alive, setAlive]     = useState(isAlive)
+  const [party, setParty]     = useState(inParty)
+  const [hp, setHp]           = useState<number>(currentHp ?? maxHp)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
 
   useEffect(() => {
     const jwt = getJwt()
@@ -82,32 +77,6 @@ export function CharacterControls({ characterId, ownerId, isAlive, inParty, curr
   async function handleHpBlur() {
     await patch({ current_hp: hp })
   }
-
-  async function handleSync() {
-    const jwt = getJwt()
-    if (!jwt) return
-    setSyncing(true)
-    setError(null)
-    try {
-      const res = await fetch(`${API_URL}/characters/${characterId}/sync`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${jwt.token}` },
-      })
-      if (res.ok) {
-        const updated = await res.json()
-        setSyncedAt(updated.last_synced_at ?? new Date().toISOString())
-        window.location.reload()
-      } else {
-        const err = await res.json().catch(() => ({}))
-        setError(err.message ?? 'No se pudo sincronizar')
-      }
-    } catch { setError('Error de conexión') }
-    finally { setSyncing(false) }
-  }
-
-  const fmtSync = syncedAt
-    ? new Date(syncedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : null
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -158,30 +127,7 @@ export function CharacterControls({ characterId, ownerId, isAlive, inParty, curr
             {party ? '⚔ En party' : '⚔ Fuera de party'}
           </button>
 
-          {/* Sync Pathbuilder */}
-          {pathbuilderId && (
-            <div className="flex flex-col gap-0.5">
-              <button
-                onClick={handleSync}
-                disabled={syncing}
-                className="flex items-center gap-1.5 rounded-lg border border-[#3c3330] bg-[#181412] px-3 py-2 text-[0.72rem] text-stone-400 transition-colors hover:border-amber-500/30 hover:text-amber-400 disabled:opacity-50"
-              >
-                {syncing
-                  ? <Loader2 className="h-3 w-3 animate-spin" />
-                  : <RefreshCw className="h-3 w-3" />
-                }
-                Sincronizar Pathbuilder
-              </button>
-              {fmtSync && (
-                <span className="pl-1 text-[0.6rem] text-stone-700">Última sync: {fmtSync}</span>
-              )}
-            </div>
-          )}
         </>
-      )}
-
-      {!canEdit && fmtSync && (
-        <span className="text-[0.62rem] text-stone-700">Actualizado: {fmtSync}</span>
       )}
 
       {error && (

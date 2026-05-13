@@ -4,6 +4,8 @@ import { api, abilityMod, type PathbuilderBuild, type PathbuilderWeapon } from '
 import { PortraitUploader } from '../_components/portrait-uploader'
 import { CharacterControls } from './_components/character-controls'
 import { BackstorySection } from './_components/backstory-section'
+import { SyncButton } from './_components/sync-button'
+import { PublicBioEditor } from './_components/public-bio-editor'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -224,11 +226,26 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
                 )}
               </div>
 
-              <h1 className={`font-display mb-1 text-[clamp(1.8rem,4vw,3rem)] font-bold leading-tight tracking-[0.05em] ${character.is_alive === false ? 'text-stone-500' : 'text-stone-50'}`}>
-                {build.name}
-              </h1>
+              <div className="mb-1 flex items-center gap-3">
+                <h1 className={`font-display text-[clamp(1.8rem,4vw,3rem)] font-bold leading-tight tracking-[0.05em] ${character.is_alive === false ? 'text-stone-500' : 'text-stone-50'}`}>
+                  {build.name}
+                </h1>
+                {character.has_pathbuilder_id && (
+                  <SyncButton
+                    characterId={character._id}
+                    ownerId={ownerId}
+                    lastSyncedAt={character.last_synced_at ?? null}
+                  />
+                )}
+              </div>
 
-              <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem] text-stone-400">
+              <PublicBioEditor
+                characterId={character._id}
+                ownerId={ownerId}
+                initialBio={character.public_bio ?? ''}
+              />
+
+              <div className="mt-4 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.85rem] text-stone-400">
                 <span className="font-semibold text-stone-200">
                   {build.class}{build.dualClass ? ` / ${build.dualClass}` : ''}
                 </span>
@@ -301,8 +318,6 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
                   inParty={character.in_party ?? true}
                   currentHp={character.current_hp}
                   maxHp={maxHp}
-                  lastSyncedAt={character.last_synced_at ?? null}
-                  pathbuilderId={character.has_pathbuilder_id ?? false}
                 />
               </div>
 
@@ -378,7 +393,7 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
                 {[
                   { val: build.money.pp, label: 'PP', color: 'text-violet-400' },
                   { val: build.money.gp, label: 'PO', color: 'text-amber-400' },
-                  { val: build.money.sp, label: 'PP', color: 'text-stone-300' },
+                  { val: build.money.sp, label: 'PA', color: 'text-stone-300' },
                   { val: build.money.cp, label: 'PC', color: 'text-orange-700' },
                 ].map(({ val, label, color }) => (
                   <div key={label} className="rounded border border-[#2a2826] bg-[#181412] py-2">
@@ -393,18 +408,6 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
 
         {/* ── Main content ── */}
         <div className="flex flex-col gap-8">
-
-          {/* Bio */}
-          {character.public_bio && (
-            <div>
-              <SectionHeader>Biografía</SectionHeader>
-              <div className="rounded-xl border border-[#2a2826] bg-[#181412] px-6 py-5">
-                <p className="font-body text-[1rem] italic leading-[1.85] text-stone-300">
-                  {character.public_bio}
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Trained skills */}
           {(trainedSkills.length > 0 || loreSkills.length > 0) && (
