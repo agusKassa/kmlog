@@ -2,35 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature, ApiNpc, ApiSession } from '@/lib/api'
-
-// ── Hex math (pointy-top axial grid) ─────────────────────────────────────────
-
-const SQRT3 = Math.sqrt(3)
-const HEX_R = 32
-
-function axialToPixel(q: number, r: number) {
-  return {
-    x: HEX_R * (SQRT3 * q + (SQRT3 / 2) * r),
-    y: HEX_R * 1.5 * r,
-  }
-}
-
-function hexPoints(cx: number, cy: number, radius: number): string {
-  return Array.from({ length: 6 }, (_, i) => {
-    const a = (Math.PI / 180) * (60 * i - 90)
-    return `${cx + radius * Math.cos(a)},${cy + radius * Math.sin(a)}`
-  }).join(' ')
-}
-
-// Returns the midpoint of a hex edge (pointy-top, edges 0-5: NE E SE SW W NW)
-function edgeMidpoint(cx: number, cy: number, r: number, edge: number): [number, number] {
-  const a1 = (Math.PI / 180) * (60 * edge - 90)
-  const a2 = (Math.PI / 180) * (60 * ((edge + 1) % 6) - 90)
-  return [
-    ((Math.cos(a1) + Math.cos(a2)) / 2) * r + cx,
-    ((Math.sin(a1) + Math.sin(a2)) / 2) * r + cy,
-  ]
-}
+import { HEX_RADIUS, hexCenter, hexPolygonPoints, hexEdgeMidpoint } from '@/lib/hex'
 
 const LINEAR_STYLE: Record<string, { stroke: string; width: number; dash?: string }> = {
   river:     { stroke: '#2a6aad', width: 2.2 },
@@ -1242,7 +1214,7 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
   )
 
   const hexData = useMemo(
-    () => localHexes.map(h => ({ ...h, ...axialToPixel(h.q, h.r) })),
+    () => localHexes.map(h => ({ ...h, ...hexCenter(h.q, h.r) })),
     [localHexes]
   )
 
@@ -1251,8 +1223,8 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
     const xs = hexData.map(h => h.x)
     const ys = hexData.map(h => h.y)
     return {
-      initTx: -(Math.min(...xs) - HEX_R * 1.5) + 60,
-      initTy: -(Math.min(...ys) - HEX_R * 1.5) + 60,
+      initTx: -(Math.min(...xs) - HEX_RADIUS * 1.5) + 60,
+      initTy: -(Math.min(...ys) - HEX_RADIUS * 1.5) + 60,
     }
   }, [hexData])
 
@@ -1339,7 +1311,7 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
       const worldX = (e.clientX - rect.left - initTx - view.pan.x) / view.zoom
       const worldY = (e.clientY - rect.top  - initTy - view.pan.y) / view.zoom
       let closestId: string | null = null
-      let minDist = HEX_R * 1.2
+      let minDist = HEX_RADIUS * 1.2
       for (const h of hexData) {
         const dist = Math.hypot(h.x - worldX, h.y - worldY)
         if (dist < minDist) { minDist = dist; closestId = h._id }
@@ -1449,7 +1421,7 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                   const isSelected = hex._id === selectedHexId
                   const isHovered  = hex._id === hoveredHexId
                   const isParty    = hex._id === localMap.current_party_hex_id
-                  const inner    = hexPoints(hex.x, hex.y, HEX_R - 1.2)
+                  const inner    = hexPolygonPoints(hex.x, hex.y)
 
                   const showTerrain = hex.is_discovered || hex.is_explored
                   const showIcons   = hex.is_explored
@@ -1490,8 +1462,8 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                       {showTerrain && hex.linear_features.map((feat, fi) => {
                         if (!feat.path || feat.path.length < 2) return null
                         const style = LINEAR_STYLE[feat.type] ?? LINEAR_STYLE.river
-                        const [x1, y1] = edgeMidpoint(hex.x, hex.y, HEX_R - 1.2, feat.path[0])
-                        const [x2, y2] = edgeMidpoint(hex.x, hex.y, HEX_R - 1.2, feat.path[1])
+                        const [x1, y1] = hexEdgeMidpoint(hex.x, hex.y, feat.path[0])
+                        const [x2, y2] = hexEdgeMidpoint(hex.x, hex.y, feat.path[1])
                         return (
                           <path key={`lf-${fi}`}
                             d={`M ${x1} ${y1} Q ${hex.x} ${hex.y} ${x2} ${y2}`}
@@ -1525,21 +1497,21 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                       {isParty && (
                         <g style={{ pointerEvents: 'none' }}>
                           {/* Pole */}
-                          <line x1={hex.x} y1={hex.y - HEX_R * 0.72}
-                            x2={hex.x} y2={hex.y + HEX_R * 0.32}
+                          <line x1={hex.x} y1={hex.y - HEX_RADIUS * 0.72}
+                            x2={hex.x} y2={hex.y + HEX_RADIUS * 0.32}
                             stroke="#f59e0b" strokeWidth="1.4" opacity="0.95" />
                           {/* Flag triangle */}
                           <polygon
-                            points={`${hex.x},${hex.y - HEX_R * 0.72} ${hex.x + 13},${hex.y - HEX_R * 0.46} ${hex.x},${hex.y - HEX_R * 0.2}`}
+                            points={`${hex.x},${hex.y - HEX_RADIUS * 0.72} ${hex.x + 13},${hex.y - HEX_RADIUS * 0.46} ${hex.x},${hex.y - HEX_RADIUS * 0.2}`}
                             fill="#f59e0b" opacity="0.9" filter="url(#flagglow)" />
                           {/* Base dot */}
-                          <circle cx={hex.x} cy={hex.y + HEX_R * 0.32}
+                          <circle cx={hex.x} cy={hex.y + HEX_RADIUS * 0.32}
                             r={2.2} fill="#f59e0b" opacity="0.8" />
                         </g>
                       )}
 
                       {isSelected && hex.region && (
-                        <text x={hex.x} y={hex.y + HEX_R + 10}
+                        <text x={hex.x} y={hex.y + HEX_RADIUS + 10}
                           textAnchor="middle" fontSize={7} fill="#a8a29e"
                           style={{ pointerEvents: 'none', userSelect: 'none' }}>
                           {hex.region}
