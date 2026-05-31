@@ -475,35 +475,76 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
           {spellcasters.length > 0 && (
             <div>
               <SectionHeader>Conjuros</SectionHeader>
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 {spellcasters.map((sc, sci) => {
                   const allSpells = [...(sc.spells ?? []), ...(sc.prepared ?? [])]
                     .filter(s => s.list.length > 0)
                     .sort((a, b) => a.spellLevel - b.spellLevel)
 
+                  const typeLabel =
+                    sc.spellcastingType === 'prepared'    ? 'Preparado' :
+                    sc.spellcastingType === 'spontaneous' ? 'Espontáneo' :
+                    sc.spellcastingType
+
                   return (
-                    <div key={sci} className="overflow-hidden rounded-xl border border-[#2a2826] bg-[#181412]">
-                      <div className="flex items-center justify-between border-b border-[#222120] px-4 py-2.5">
-                        <span className="font-display text-[0.75rem] font-semibold tracking-[0.06em] text-stone-300">{sc.name}</span>
-                        <span className="font-sans text-[0.62rem] uppercase tracking-[0.1em] text-stone-600">
-                          {sc.magicTradition} · {sc.spellcastingType}
+                    <div key={sci} className="overflow-hidden rounded-xl border border-[#2a2826]">
+                      {/* Caster header */}
+                      <div className="flex items-center justify-between border-b border-[#1e1c1a] bg-[#141210] px-4 py-3">
+                        <span className="font-display text-[0.82rem] font-semibold tracking-[0.05em] text-stone-200">
+                          {sc.name}
                         </span>
+                        <div className="flex items-center gap-1.5">
+                          {sc.magicTradition && (
+                            <span className="rounded border border-[#2a2826] bg-[#0e0c0b] px-2 py-0.5 font-sans text-[0.58rem] uppercase tracking-[0.1em] text-stone-500">
+                              {sc.magicTradition}
+                            </span>
+                          )}
+                          <span className="rounded border border-[#2a2826] bg-[#0e0c0b] px-2 py-0.5 font-sans text-[0.58rem] uppercase tracking-[0.1em] text-stone-500">
+                            {typeLabel}
+                          </span>
+                        </div>
                       </div>
-                      <div className="divide-y divide-[#1e1c1a]">
-                        {allSpells.map(s => (
-                          <div key={s.spellLevel} className="flex gap-4 px-4 py-3">
-                            <div className="w-10 shrink-0">
-                              <span className="font-display text-[0.7rem] font-bold tracking-[0.08em] text-amber-500/80">
-                                {s.spellLevel === 0 ? 'Can.' : `Nv.${s.spellLevel}`}
-                              </span>
+
+                      {/* Spell levels */}
+                      <div className="divide-y divide-[#181614] bg-[#181412]">
+                        {allSpells.map(s => {
+                          const isCantrip = s.spellLevel === 0
+                          const slots = !isCantrip ? (sc.perDay?.[s.spellLevel] ?? null) : null
+
+                          return (
+                            <div key={s.spellLevel} className="px-4 py-3.5">
+                              {/* Level row */}
+                              <div className="mb-2.5 flex items-center gap-2.5">
+                                <span className={`rounded px-2 py-0.5 font-display text-[0.62rem] font-bold uppercase tracking-[0.14em] ${
+                                  isCantrip
+                                    ? 'bg-violet-500/10 text-violet-300/80'
+                                    : 'bg-amber-500/10 text-amber-400'
+                                }`}>
+                                  {isCantrip ? 'Cantripos' : `Nivel ${s.spellLevel}`}
+                                </span>
+                                {slots !== null && (
+                                  <span className="font-sans text-[0.6rem] text-stone-600">
+                                    {slots} {slots === 1 ? 'slot' : 'slots'}
+                                  </span>
+                                )}
+                                <div className="h-px flex-1 bg-[#222120]" />
+                              </div>
+
+                              {/* Spell pills */}
+                              <div className="flex flex-wrap gap-1.5">
+                                {s.list.map(spell => (
+                                  <span key={spell} className={`rounded border px-2 py-1 font-sans text-[0.72rem] leading-none ${
+                                    isCantrip
+                                      ? 'border-violet-500/15 bg-violet-500/5 text-violet-200/80'
+                                      : 'border-[#2a2826] bg-[#0e0c0b] text-stone-300'
+                                  }`}>
+                                    {spell}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1">
-                              {s.list.map(spell => (
-                                <span key={spell} className="font-sans text-[0.76rem] text-stone-500">{spell}</span>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )
