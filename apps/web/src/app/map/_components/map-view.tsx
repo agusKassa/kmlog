@@ -456,11 +456,12 @@ function CreateEventModal({ kind, sessions, token, onClose }: {
 
 // ── NpcMoveModal ──────────────────────────────────────────────────────────────
 
-function NpcMoveModal({ hex, npcs, locationMap, token, onClose }: {
+function NpcMoveModal({ hex, npcs, locationMap, token, onUpdateNpc, onClose }: {
   hex: RichHex
   npcs: ApiNpc[]
   locationMap: Map<string, ApiLocation>
   token: string | null
+  onUpdateNpc: (n: ApiNpc) => void
   onClose: () => void
 }) {
   const hexLocations = useMemo(
@@ -485,6 +486,7 @@ function NpcMoveModal({ hex, npcs, locationMap, token, onClose }: {
         body: JSON.stringify({ location_id: selectedLocId ?? null }),
       })
       if (!res.ok) { setError('Error al mover el NPC'); return }
+      onUpdateNpc(await res.json())
       setDone(true)
       setTimeout(onClose, 900)
     } finally {
@@ -575,14 +577,117 @@ function NpcMoveModal({ hex, npcs, locationMap, token, onClose }: {
   )
 }
 
+// ── LastSeenModal ─────────────────────────────────────────────────────────────
+
+function LastSeenModal({ hex, npcs, token, onUpdateNpc, onClose }: {
+  hex: RichHex
+  npcs: ApiNpc[]
+  token: string | null
+  onUpdateNpc: (n: ApiNpc) => void
+  onClose: () => void
+}) {
+  const [selectedNpcId, setSelectedNpcId] = useState<string | null>(null)
+  const [description, setDescription]     = useState('')
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState<string | null>(null)
+  const [done, setDone]                   = useState(false)
+
+  async function handleSave() {
+    if (!selectedNpcId || !token) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_URL}/npcs/${selectedNpcId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          last_seen_hex_id:     hex._id,
+          last_seen_at:         new Date().toISOString(),
+          last_seen_description: description.trim(),
+        }),
+      })
+      if (!res.ok) { setError('Error al guardar'); return }
+      onUpdateNpc(await res.json())
+      setDone(true)
+      setTimeout(onClose, 900)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <Modal title="Última vez visto" onClose={onClose}>
+        <div className="flex flex-col items-center gap-3 py-6">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-green-500/20 bg-green-500/10">
+            <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor" className="text-green-400">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <p className="font-display text-[0.75rem] tracking-[0.12em] text-green-400">Registrado correctamente</p>
+        </div>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal title="Marcar Última Vez Visto" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <div>
+          <label className={labelCls}>NPC</label>
+          <div className="flex max-h-52 flex-col gap-1 overflow-y-auto rounded-lg border border-[#2a2826] bg-[#0c0a09] p-1.5">
+            {npcs.length === 0 ? (
+              <p className="px-2 py-4 text-center text-[0.78rem] italic text-stone-700">Sin NPCs creados.</p>
+            ) : npcs.map(npc => {
+              const rs = NPC_ROLE[npc.role] ?? NPC_ROLE.unknown
+              return (
+                <button key={npc._id} type="button" onClick={() => setSelectedNpcId(npc._id)}
+                  className={`flex items-center gap-3 rounded-md border px-3 py-2 text-left transition-all ${
+                    selectedNpcId === npc._id
+                      ? 'border-amber-500/30 bg-amber-500/10'
+                      : 'border-transparent hover:border-[#2a2826] hover:bg-[#141210]'
+                  }`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[0.8rem] font-medium text-stone-200 leading-tight">{npc.name}</div>
+                    <div className={`text-[0.62rem] ${rs.color}`}>
+                      {rs.label}{!npc.is_alive && ' · Muerto'}
+                    </div>
+                  </div>
+                  {selectedNpcId === npc._id && (
+                    <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" className="shrink-0 text-amber-500">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Descripción del avistamiento (opcional)</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)}
+            placeholder="Dónde exactamente, bajo qué circunstancias..." rows={3}
+            className={textareaCls} />
+        </div>
+
+        {error && <p className="rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-[0.78rem] text-red-400">{error}</p>}
+
+        <ModalFooter onClose={onClose} onConfirm={handleSave}
+          confirmLabel={saving ? 'Guardando...' : 'Marcar aquí'} disabled={saving || !selectedNpcId} />
+      </div>
+    </Modal>
+  )
+}
+
 // ── HexPanel ──────────────────────────────────────────────────────────────────
 
-type ActiveModal = 'location' | 'encounter' | 'event' | 'npc-move' | null
+type ActiveModal = 'location' | 'encounter' | 'event' | 'npc-move' | 'last-seen' | null
 
 function HexPanel({
   hex, locationMap, mapId, mapData, token, user, sessions, npcs,
   routes, allHexes,
-  onUpdate, onUpdateMap, onAddLocation, onAddRoute, onUpdateRoute, onDeleteRoute, onClose,
+  onUpdate, onUpdateMap, onAddLocation, onAddRoute, onUpdateRoute, onDeleteRoute, onUpdateNpc, onClose,
 }: {
   hex: RichHex
   locationMap: Map<string, ApiLocation>
@@ -599,6 +704,7 @@ function HexPanel({
   onAddLocation: (l: ApiLocation) => void
   onAddRoute: (r: ApiRoute) => void
   onUpdateRoute: (r: ApiRoute) => void
+  onUpdateNpc: (n: ApiNpc) => void
   onDeleteRoute: (id: string) => void
   onClose: () => void
 }) {
@@ -716,6 +822,12 @@ function HexPanel({
     [npcs, hexLocIds]
   )
 
+  // NPCs whose last known sighting was this hex
+  const npcLastSeenHere = useMemo(
+    () => npcs.filter(n => n.last_seen_hex_id === hex._id),
+    [npcs, hex._id]
+  )
+
   // Routes involving this hex
   const hexRoutes = useMemo(
     () => routes.filter(r => r.from_hex_id === hex._id || r.to_hex_id === hex._id),
@@ -789,7 +901,12 @@ function HexPanel({
         <CreateEventModal kind="event" sessions={sessions} token={token} onClose={() => setActiveModal(null)} />
       )}
       {activeModal === 'npc-move' && (
-        <NpcMoveModal hex={hex} npcs={npcs} locationMap={locationMap} token={token} onClose={() => setActiveModal(null)} />
+        <NpcMoveModal hex={hex} npcs={npcs} locationMap={locationMap} token={token}
+          onUpdateNpc={onUpdateNpc} onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'last-seen' && (
+        <LastSeenModal hex={hex} npcs={npcs} token={token}
+          onUpdateNpc={onUpdateNpc} onClose={() => setActiveModal(null)} />
       )}
 
       {/* Header */}
@@ -866,10 +983,11 @@ function HexPanel({
               {/* 2-col grid for the rest */}
               <div className="grid grid-cols-2 gap-1.5">
                 {[
-                  { icon: '◈', label: 'Nueva locación', modal: 'location' as ActiveModal },
-                  { icon: '◉', label: 'Mover NPC aquí', modal: 'npc-move' as ActiveModal },
-                  { icon: '⚔', label: 'Encuentro',      modal: 'encounter' as ActiveModal },
-                  { icon: '✦', label: 'Evento',         modal: 'event' as ActiveModal },
+                  { icon: '◈', label: 'Nueva locación',    modal: 'location'  as ActiveModal },
+                  { icon: '◉', label: 'Mover NPC aquí',    modal: 'npc-move'  as ActiveModal },
+                  { icon: '👁', label: 'Última vez visto',  modal: 'last-seen' as ActiveModal },
+                  { icon: '⚔', label: 'Encuentro',         modal: 'encounter' as ActiveModal },
+                  { icon: '✦', label: 'Evento',            modal: 'event'     as ActiveModal },
                 ].map(({ icon, label, modal }) => (
                   <button key={label} onClick={() => setActiveModal(modal)}
                     className="flex items-center justify-center gap-1.5 rounded-md border border-[#2a2826] px-2 py-2 text-[0.65rem] font-medium text-stone-500 transition-all hover:border-amber-500/20 hover:bg-amber-500/5 hover:text-amber-400">
@@ -1070,6 +1188,42 @@ function HexPanel({
                     </div>
                     {npc.location_id && locationMap.get(npc.location_id) && (
                       <TypeBadge type={locationMap.get(npc.location_id)!.type} />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Última aparición de NPCs */}
+        {npcLastSeenHere.length > 0 && (
+          <div className="mb-4">
+            <SectionLabel>Última aparición ({npcLastSeenHere.length})</SectionLabel>
+            <div className="flex flex-col gap-1.5">
+              {npcLastSeenHere.map(npc => {
+                const rs = NPC_ROLE[npc.role] ?? NPC_ROLE.unknown
+                return (
+                  <div key={npc._id}
+                    className="rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2.5">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="flex-1 text-[0.78rem] font-medium text-stone-300 leading-tight">{npc.name}</span>
+                      <span className={`text-[0.6rem] ${rs.color}`}>{rs.label}</span>
+                      {!npc.is_alive && (
+                        <span className="rounded border border-stone-700/40 bg-stone-500/8 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.08em] text-stone-600">
+                          Muerto
+                        </span>
+                      )}
+                    </div>
+                    {npc.last_seen_at && (
+                      <div className="text-[0.62rem] text-stone-600">
+                        {new Date(npc.last_seen_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                    )}
+                    {npc.last_seen_description && (
+                      <p className="mt-1 font-body text-[0.75rem] italic leading-snug text-stone-500">
+                        {npc.last_seen_description}
+                      </p>
                     )}
                   </div>
                 )
@@ -1362,6 +1516,7 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [], route
   const [localMap, setLocalMap]           = useState<ApiGameMap>(map)
   const [localLocations, setLocalLocations] = useState<ApiLocation[]>(locations)
   const [localRoutes, setLocalRoutes]     = useState<ApiRoute[]>(routes)
+  const [localNpcs, setLocalNpcs]         = useState<ApiNpc[]>(npcs)
   const [selectedHexId, setSelectedHexId] = useState<string | null>(null)
   const [hoveredHexId, setHoveredHexId]   = useState<string | null>(null)
   const [filterType, setFilterType]       = useState<string | null>(null)
@@ -1447,6 +1602,10 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [], route
   }, [])
   const handleDeleteRoute = useCallback((id: string) => {
     setLocalRoutes(prev => prev.filter(x => x._id !== id))
+  }, [])
+
+  const handleUpdateNpc = useCallback((updated: ApiNpc) => {
+    setLocalNpcs(prev => prev.map(n => n._id === updated._id ? updated : n))
   }, [])
 
   // hex._id → pixel center, for route line rendering
@@ -1782,7 +1941,7 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [], route
             token={token}
             user={user}
             sessions={sessions}
-            npcs={npcs}
+            npcs={localNpcs}
             routes={localRoutes}
             allHexes={localHexes}
             onUpdate={handleHexUpdate}
@@ -1791,6 +1950,7 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [], route
             onAddRoute={handleAddRoute}
             onUpdateRoute={handleUpdateRoute}
             onDeleteRoute={handleDeleteRoute}
+            onUpdateNpc={handleUpdateNpc}
             onClose={() => setSelectedHexId(null)}
           />
         ) : (
