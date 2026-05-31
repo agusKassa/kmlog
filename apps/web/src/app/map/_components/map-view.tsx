@@ -56,6 +56,22 @@ const TERRAIN: Record<string, { fill: string; stroke: string; label: string }> =
   other:     { fill: '#141210', stroke: '#201e1a', label: 'Otro' },
 }
 
+// SVG texture patterns (procedural — no image files required).
+// paths: stroke-only paths within a w×h tile, tiled via patternUnits="userSpaceOnUse".
+// opacity: applied to the texture polygon overlay (on top of the solid fill).
+const TERRAIN_TEXTURES: Record<string, { paths: string[]; w: number; h: number; opacity: number }> = {
+  plains:    { paths: ['M0 8 L8 0'],                                                               w: 8,  h: 8,  opacity: 0.20 },
+  hills:     { paths: ['M0 5 Q6 1 12 5'],                                                          w: 12, h: 8,  opacity: 0.24 },
+  forest:    { paths: ['M5 1 L5 9', 'M1 5 L9 5'],                                                 w: 10, h: 10, opacity: 0.22 },
+  swamp:     { paths: ['M1 6 A5 5 0 0 1 11 6', 'M6 5 m-1.2 0 a1.2 1.2 0 1 0 2.4 0 a1.2 1.2 0 1 0 -2.4 0'], w: 12, h: 10, opacity: 0.20 },
+  mountains: { paths: ['M0 8 L4 1 L8 8', 'M8 8 L12 1 L16 8'],                                     w: 16, h: 10, opacity: 0.22 },
+  desert:    { paths: ['M4 4 m-1.5 0 a1.5 1.5 0 1 0 3 0 a1.5 1.5 0 1 0 -3 0'],                   w: 8,  h: 8,  opacity: 0.22 },
+  tundra:    { paths: ['M0 4 L8 4', 'M4 0 L4 8'],                                                 w: 8,  h: 8,  opacity: 0.16 },
+  lake:      { paths: ['M0 4 Q2.5 2 5 4 Q7.5 6 10 4'],                                            w: 10, h: 8,  opacity: 0.24 },
+  ocean:     { paths: ['M0 3 Q2.5 1 5 3 Q7.5 5 10 3', 'M0 7 Q2.5 5 5 7 Q7.5 9 10 7'],            w: 10, h: 10, opacity: 0.22 },
+  other:     { paths: ['M0 0 L8 8', 'M8 0 L0 8'],                                                 w: 8,  h: 8,  opacity: 0.12 },
+}
+
 // Fallback glyphs for HTML contexts (sidebar, tooltips)
 const FEAT_GLYPH: Record<string, string> = {
   city: '◈', town: '◆', village: '◇',
@@ -1585,6 +1601,17 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [], route
                   <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
 
+                {/* Terrain texture patterns — procedural, no external images */}
+                {Object.entries(TERRAIN_TEXTURES).map(([terrain, { paths, w, h }]) => (
+                  <pattern key={terrain} id={`tex-${terrain}`}
+                    x="0" y="0" width={w} height={h} patternUnits="userSpaceOnUse">
+                    {paths.map((d, i) => (
+                      <path key={i} d={d} stroke="white" strokeWidth="0.75"
+                        fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    ))}
+                  </pattern>
+                ))}
+
                 {/* Location type icons as reusable SVG symbols */}
                 {Object.entries(ICON_SYMBOLS).map(([id, paths]) => (
                   <symbol
@@ -1635,6 +1662,14 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [], route
                         fill={fillColor}
                         stroke={strokeColor}
                         strokeWidth={strokeW} />
+
+                      {/* Terrain texture overlay */}
+                      {showTerrain && TERRAIN_TEXTURES[hex.terrain] && (
+                        <polygon points={inner}
+                          fill={`url(#tex-${hex.terrain})`}
+                          opacity={TERRAIN_TEXTURES[hex.terrain].opacity}
+                          style={{ pointerEvents: 'none' }} />
+                      )}
 
                       {!hex.is_discovered && (
                         <polygon points={inner} fill="rgba(0,0,0,0.5)"
