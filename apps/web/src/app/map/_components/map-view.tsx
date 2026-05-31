@@ -84,11 +84,69 @@ const TERRAIN: Record<string, { fill: string; stroke: string; label: string }> =
   other:     { fill: '#141210', stroke: '#201e1a', label: 'Otro' },
 }
 
-const FEAT_ICON: Record<string, string> = {
+// Fallback glyphs for HTML contexts (sidebar, tooltips)
+const FEAT_GLYPH: Record<string, string> = {
   city: '◈', town: '◆', village: '◇',
   dungeon: '⚔', cave: '∿', ruins: '⌘',
   fortress: '⬡', temple: '✦', mine: '⋄',
   landmark: '★', other: '•',
+}
+
+// feat type → SVG symbol id
+const FEAT_SYMBOL: Record<string, string> = {
+  city: 'castle', town: 'building', village: 'tent',
+  dungeon: 'skull', cave: 'mountain', ruins: 'landmark',
+  fortress: 'castle', temple: 'church', mine: 'pickaxe',
+  landmark: 'flag', other: 'mappin',
+}
+
+// SVG path data per symbol (viewBox 0 0 24 24, stroke="currentColor")
+const ICON_SYMBOLS: Record<string, string[]> = {
+  castle: [
+    "M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9",
+    "M22 11H2", "M6 3v8", "M18 3v8", "M18 5H6",
+    "M10 5V3", "M14 5V3", "M15 21v-3a3 3 0 0 0-6 0v3",
+  ],
+  building: [
+    "M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16",
+    "M2 21h20", "M14 21v-3a2 2 0 0 0-4 0v3",
+    "M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2",
+    "M10 12h4", "M10 8h4",
+  ],
+  tent: [
+    "M3.5 21 14 3", "M20.5 21 10 3",
+    "M15.5 21 12 15l-3.5 6", "M2 21h20",
+  ],
+  skull: [
+    "M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z",
+    "m12.5 17-.5-1-.5 1h1z",
+  ],
+  mountain: ["m8 3 4 8 5-5 5 15H2L8 3z"],
+  landmark: [
+    "M11.12 2.198a2 2 0 0 1 1.76.006l7.866 3.847c.476.233.31.949-.22.949H3.474c-.53 0-.695-.716-.22-.949z",
+    "M10 18v-7", "M14 18v-7", "M18 18v-7", "M6 18v-7", "M3 22h18",
+  ],
+  church: [
+    "M6 21V7a1 1 0 0 1 .376-.782l5-3.999a1 1 0 0 1 1.249.001l5 4A1 1 0 0 1 18 7v14",
+    "M14 21v-3a2 2 0 0 0-4 0v3",
+    "M10 9h4", "M12 7v5",
+    "m18 9 3.52 2.147a1 1 0 0 1 .48.854V19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6.999a1 1 0 0 1 .48-.854L6 9",
+  ],
+  pickaxe: [
+    "m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999",
+    "M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z",
+  ],
+  flag: [
+    "M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528",
+  ],
+  mappin: [
+    "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0",
+    "M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  ],
+  treepine: [
+    "m17 14 3 3.3a1 1 0 0 1-.7 1.7H4.7a1 1 0 0 1-.7-1.7L7 14h-.3a1 1 0 0 1-.7-1.7L9 9h-.2A1 1 0 0 1 8 7.3L12 3l4 4.3a1 1 0 0 1-.8 1.7H15l3 3.3a1 1 0 0 1-.7 1.7H17Z",
+    "M12 22v-3",
+  ],
 }
 
 const LOC_TYPE: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -939,7 +997,7 @@ function HexPanel({
                 const linkedLoc = feat.location_id ? locationMap.get(feat.location_id) : null
                 return (
                   <div key={i} className="flex items-center gap-2.5 rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2">
-                    <span className="text-[0.9rem] text-amber-500/80">{FEAT_ICON[feat.type] ?? '•'}</span>
+                    <span className="text-[0.9rem] text-amber-500/80">{FEAT_GLYPH[feat.type] ?? '•'}</span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[0.75rem] font-medium text-stone-300">
                         {linkedLoc?.name ?? feat.label ?? feat.type}
@@ -1005,10 +1063,12 @@ function HexPanel({
 
 // ── LocationPanel ─────────────────────────────────────────────────────────────
 
-function LocationPanel({ locations, filterType, onFilterChange }: {
+function LocationPanel({ locations, filterType, onFilterChange, onLocationClick, linkedLocationIds }: {
   locations: ApiLocation[]
   filterType: string | null
   onFilterChange: (t: string | null) => void
+  onLocationClick: (locationId: string) => void
+  linkedLocationIds: Set<string>
 }) {
   const filtered = filterType ? locations.filter(l => l.type === filterType) : locations
   const types = [...new Set(locations.map(l => l.type))]
@@ -1057,22 +1117,44 @@ function LocationPanel({ locations, filterType, onFilterChange }: {
           </div>
         ) : (
           <div className="divide-y divide-[#1e1c1a]">
-            {filtered.map((loc, i) => (
-              <div key={loc._id} className="px-4 py-3 transition-colors hover:bg-[#141210]"
-                style={{ animation: `fade-in-left 0.3s ease both ${i * 0.04}s` }}>
-                <div className="mb-1 flex items-start justify-between gap-2">
-                  <span className="font-display text-[0.8rem] font-semibold leading-snug tracking-[0.04em] text-stone-200">
-                    {loc.name}
-                  </span>
-                  <TypeBadge type={loc.type} />
-                </div>
-                {loc.public_description && (
-                  <p className="font-body line-clamp-2 text-[0.78rem] italic leading-snug text-stone-600">
-                    {loc.public_description}
-                  </p>
-                )}
-              </div>
-            ))}
+            {filtered.map((loc, i) => {
+              const hasHex = linkedLocationIds.has(loc._id)
+              return (
+                <button
+                  key={loc._id}
+                  onClick={() => hasHex && onLocationClick(loc._id)}
+                  disabled={!hasHex}
+                  className={`group w-full px-4 py-3 text-left transition-colors ${
+                    hasHex ? 'cursor-pointer hover:bg-[#181412]' : 'cursor-default'
+                  }`}
+                  style={{ animation: `fade-in-left 0.3s ease both ${i * 0.04}s` }}
+                >
+                  <div className="mb-1 flex items-start justify-between gap-2">
+                    <span className={`font-display text-[0.8rem] font-semibold leading-snug tracking-[0.04em] transition-colors ${
+                      hasHex ? 'text-stone-200 group-hover:text-amber-400' : 'text-stone-500'
+                    }`}>
+                      {loc.name}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <TypeBadge type={loc.type} />
+                      {hasHex && (
+                        <svg
+                          width="10" height="10" viewBox="0 0 20 20" fill="currentColor"
+                          className="shrink-0 text-stone-700 transition-colors group-hover:text-amber-500"
+                        >
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  {loc.public_description && (
+                    <p className="font-body line-clamp-2 text-left text-[0.78rem] italic leading-snug text-stone-600">
+                      {loc.public_description}
+                    </p>
+                  )}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -1141,6 +1223,19 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
     [localLocations]
   )
 
+  // location_id → hex_id (built from hex.location_ids)
+  const locationToHexId = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const h of localHexes) {
+      for (const lid of h.location_ids) {
+        m.set(String(lid), h._id)
+      }
+    }
+    return m
+  }, [localHexes])
+
+  const linkedLocationIds = useMemo(() => new Set(locationToHexId.keys()), [locationToHexId])
+
   const selectedHex = useMemo(
     () => localHexes.find(h => h._id === selectedHexId) ?? null,
     [localHexes, selectedHexId]
@@ -1160,6 +1255,21 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
       initTy: -(Math.min(...ys) - HEX_R * 1.5) + 60,
     }
   }, [hexData])
+
+  const focusHex = useCallback((hexId: string) => {
+    const hex = hexData.find(h => h._id === hexId)
+    if (!hex || !svgRef.current) return
+    const { width, height } = svgRef.current.getBoundingClientRect()
+    const zoom = view.zoom
+    setView(v => ({
+      zoom: v.zoom,
+      pan: {
+        x: width  / 2 - initTx - hex.x * zoom,
+        y: height / 2 - initTy - hex.y * zoom,
+      },
+    }))
+    setSelectedHexId(hexId)
+  }, [hexData, initTx, initTy, view.zoom])
 
   const handleHexUpdate = useCallback((updated: RichHex) => {
     setLocalHexes(prev => prev.map(h => h._id === updated._id ? updated : h))
@@ -1314,6 +1424,22 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                   <feGaussianBlur stdDeviation="2.5" result="blur" />
                   <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
+
+                {/* Location type icons as reusable SVG symbols */}
+                {Object.entries(ICON_SYMBOLS).map(([id, paths]) => (
+                  <symbol
+                    key={id}
+                    id={`loc-icon-${id}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {paths.map((d, i) => <path key={i} d={d} />)}
+                  </symbol>
+                ))}
               </defs>
               <rect width="100%" height="100%" fill="url(#mapgrid)" />
 
@@ -1376,15 +1502,24 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                         )
                       })}
 
-                      {showIcons && hex.point_features.map((feat: ApiHexPointFeature, fi: number) => (
-                        <text key={fi} x={hex.x} y={hex.y + (fi - (hex.point_features.length - 1) / 2) * 10}
-                          textAnchor="middle" dominantBaseline="middle"
-                          fontSize={feat.location_id ? 9 : 7}
-                          fill={feat.location_id ? '#f59e0b' : '#5a5250'}
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                          {FEAT_ICON[feat.type] ?? '•'}
-                        </text>
-                      ))}
+                      {showIcons && hex.point_features.map((feat: ApiHexPointFeature, fi: number) => {
+                        const symbolId = FEAT_SYMBOL[feat.type] ?? 'mappin'
+                        const iconColor = feat.location_id ? '#f59e0b' : '#5a5250'
+                        const sz = feat.location_id ? 10 : 8
+                        const iy = hex.y + (fi - (hex.point_features.length - 1) / 2) * 12
+                        return (
+                          <use
+                            key={fi}
+                            href={`#loc-icon-${symbolId}`}
+                            x={hex.x - sz / 2}
+                            y={iy - sz / 2}
+                            width={sz}
+                            height={sz}
+                            color={iconColor}
+                            style={{ pointerEvents: 'none' }}
+                          />
+                        )
+                      })}
 
                       {/* Party flag */}
                       {isParty && (
@@ -1441,6 +1576,11 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
             locations={localLocations}
             filterType={filterType}
             onFilterChange={setFilterType}
+            onLocationClick={locId => {
+              const hexId = locationToHexId.get(locId)
+              if (hexId) focusHex(hexId)
+            }}
+            linkedLocationIds={linkedLocationIds}
           />
         )}
         <MapLegend hexes={localHexes} />
