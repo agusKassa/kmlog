@@ -114,7 +114,7 @@ export interface ApiCharacter {
   build: PathbuilderBuild
 }
 
-export type MentionEntityType = 'character' | 'npc' | 'location' | 'session' | 'hex'
+export type MentionEntityType = 'character' | 'npc' | 'location' | 'session' | 'hex' | 'rule' | 'encounter'
 
 export interface ApiNoteMention {
   entity_type: MentionEntityType

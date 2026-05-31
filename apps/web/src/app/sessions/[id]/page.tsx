@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { api, formatDate, type ApiEvent } from '@/lib/api'
+import { NoteDrawer } from '@/app/_components/note-drawer'
 
 const statusStyles: Record<string, string> = {
   published: 'bg-green-500/8 text-green-300 border border-green-500/20',
@@ -331,6 +332,8 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </div>
+
+      <NoteDrawer entityType="session" entityId={session._id} />
     </main>
   )
 }

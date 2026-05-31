@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 import { api, formatDate } from '@/lib/api'
 import { GmEditRuleButton } from '../_components/gm-edit-rule-button'
 import { RuleHighlightButton } from '../_components/rule-highlight-button'
+import { NoteDrawer } from '@/app/_components/note-drawer'
 
 export async function generateMetadata({
   params,
@@ -194,6 +195,8 @@ export default async function RulePage({
           </Link>
         </div>
       </div>
+
+      <NoteDrawer entityType="rule" entityId={rule._id} />
     </main>
   )
 }
