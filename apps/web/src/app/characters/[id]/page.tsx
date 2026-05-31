@@ -71,9 +71,9 @@ function StatCard({ label, score }: { label: string; score: number }) {
   return (
     <div className="relative flex flex-col items-center overflow-hidden rounded-lg border border-[#2a2826] bg-[#181412] px-3 py-3.5 text-center">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
-      <div className="mb-1 text-[0.55rem] font-semibold uppercase tracking-[0.2em] text-stone-600">{label}</div>
+      <div className="mb-1 text-[0.58rem] font-semibold uppercase tracking-[0.18em] text-stone-500">{label}</div>
       <div className="font-display text-[1.5rem] font-bold leading-none text-amber-400">{mod >= 0 ? `+${mod}` : `${mod}`}</div>
-      <div className="mt-1.5 text-[0.65rem] text-stone-600">{score}</div>
+      <div className="mt-1.5 text-[0.68rem] font-medium text-amber-500/60">{score}</div>
     </div>
   )
 }
@@ -81,8 +81,8 @@ function StatCard({ label, score }: { label: string; score: number }) {
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-4 flex items-center gap-3">
-      <div className="h-4 w-0.5 rounded-full bg-amber-500/50" />
-      <span className="font-display text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-stone-500">
+      <div className="h-5 w-0.5 rounded-full bg-amber-500/60" />
+      <span className="font-display text-[0.74rem] font-semibold uppercase tracking-[0.2em] text-stone-300">
         {children}
       </span>
       <div className="h-px flex-1 bg-gradient-to-r from-[#2a2826] to-transparent" />
@@ -92,7 +92,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function Trait({ label }: { label: string }) {
   return (
-    <span className="rounded-md border border-[#3c3330]/80 bg-[#181412] px-2.5 py-1 font-sans text-[0.68rem] tracking-wide text-stone-500 transition-colors hover:border-[#4a4340] hover:text-stone-400">
+    <span className="rounded-md border border-[#3c3330]/80 bg-[#181412] px-2.5 py-1 font-sans text-[0.68rem] tracking-wide text-stone-400 transition-colors hover:border-[#4a4340] hover:text-stone-300">
       {label}
     </span>
   )
@@ -105,16 +105,16 @@ function WeaponRow({ weapon }: { weapon: PathbuilderWeapon }) {
     <div className="flex items-center justify-between gap-4 rounded-lg border border-[#2a2826] bg-[#181412] px-4 py-3.5 transition-colors hover:border-[#3c3330]">
       <div>
         <div className="font-display text-[0.82rem] font-semibold tracking-[0.04em] text-stone-200">{weapon.display || weapon.name}</div>
-        <div className="mt-0.5 font-sans text-[0.65rem] text-stone-600">{weapon.prof} · {weapon.die} base</div>
+        <div className="mt-0.5 font-sans text-[0.65rem] text-stone-500">{weapon.prof} · {weapon.die} base</div>
       </div>
       <div className="flex items-center gap-5 text-right">
         <div>
-          <div className="font-sans text-[0.58rem] uppercase tracking-[0.12em] text-stone-700">Ataque</div>
+          <div className="font-sans text-[0.58rem] uppercase tracking-[0.1em] text-stone-500">Ataque</div>
           <div className="font-display text-[1rem] font-bold text-amber-400">{atkStr}</div>
         </div>
         <div className="w-px self-stretch bg-[#2a2826]" />
         <div>
-          <div className="font-sans text-[0.58rem] uppercase tracking-[0.12em] text-stone-700">Daño</div>
+          <div className="font-sans text-[0.58rem] uppercase tracking-[0.1em] text-stone-500">Daño</div>
           <div className="font-display text-[0.88rem] font-semibold text-stone-300">{dmgStr}</div>
         </div>
       </div>
@@ -300,10 +300,10 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
                   { label: 'Perc', mod: perception, rank: p.perception ?? 0, color: 'text-amber-300' },
                 ].map(({ label, mod, rank, color }) => (
                   <div key={label} className="flex items-center gap-1.5 rounded-md border border-[#252220] bg-[#181412]/70 px-2.5 py-1.5">
-                    <span className="font-sans text-[0.55rem] uppercase tracking-[0.14em] text-stone-700">{label}</span>
+                    <span className="font-sans text-[0.58rem] uppercase tracking-[0.12em] text-stone-500">{label}</span>
                     <span className={`font-display text-[0.95rem] font-bold leading-none ${color}`}>{fmtBonus(mod)}</span>
                     {RANK_LABEL[rank] && (
-                      <span className={`text-[0.52rem] font-bold ${RANK_COLOR[rank] ?? 'text-stone-700'}`}>{RANK_LABEL[rank]}</span>
+                      <span className={`text-[0.54rem] font-bold ${RANK_COLOR[rank] ?? 'text-stone-600'}`}>{RANK_LABEL[rank]}</span>
                     )}
                   </div>
                 ))}
@@ -312,14 +312,14 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
               {/* Speed / Armor / Focus */}
               <div className="mb-5 flex flex-wrap items-center gap-5">
                 <div className="flex flex-col">
-                  <span className="font-sans text-[0.55rem] uppercase tracking-[0.16em] text-stone-700">Velocidad</span>
+                  <span className="font-sans text-[0.58rem] uppercase tracking-[0.14em] text-stone-500">Velocidad</span>
                   <span className="font-display text-[1.2rem] font-bold leading-none text-stone-200">{speed}&apos;</span>
                 </div>
                 {wornArmor && (
                   <>
                     <div className="h-6 w-px bg-[#2a2826]" />
                     <div className="flex flex-col">
-                      <span className="font-sans text-[0.55rem] uppercase tracking-[0.16em] text-stone-700">Armadura</span>
+                      <span className="font-sans text-[0.58rem] uppercase tracking-[0.14em] text-stone-500">Armadura</span>
                       <span className="font-display text-[0.95rem] font-bold leading-none text-stone-200">{wornArmor.display || wornArmor.name}</span>
                     </div>
                   </>
@@ -328,7 +328,7 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
                   <>
                     <div className="h-6 w-px bg-[#2a2826]" />
                     <div className="flex flex-col">
-                      <span className="font-sans text-[0.55rem] uppercase tracking-[0.16em] text-stone-700">Foco</span>
+                      <span className="font-sans text-[0.58rem] uppercase tracking-[0.14em] text-stone-500">Foco</span>
                       <span className="font-display text-[1.2rem] font-bold leading-none text-amber-400">{build.focusPoints}</span>
                     </div>
                   </>
@@ -374,7 +374,7 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
               <div className="relative overflow-hidden rounded-lg border border-[#2a2826] bg-[#181412] px-4 py-4 text-center">
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
                 <div className="font-display text-[2rem] font-bold leading-none text-amber-400">{classDc}</div>
-                <div className="mt-1.5 font-sans text-[0.56rem] uppercase tracking-[0.14em] text-stone-700">
+                <div className="mt-1.5 font-sans text-[0.58rem] uppercase tracking-[0.12em] text-stone-500">
                   {ABILITY_LABELS[build.keyability] ?? build.keyability} · {RANK_LABEL[classDcRank] ?? ''}
                 </div>
               </div>
@@ -416,7 +416,7 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
                 ].map(({ val, label, color }) => (
                   <div key={label} className="relative overflow-hidden rounded border border-[#2a2826] bg-[#181412] py-2.5">
                     <div className={`font-display text-[1rem] font-bold leading-none ${color}`}>{val}</div>
-                    <div className="mt-1 font-sans text-[0.52rem] uppercase tracking-[0.12em] text-stone-700">{label}</div>
+                    <div className="mt-1 font-sans text-[0.55rem] uppercase tracking-[0.1em] text-stone-500">{label}</div>
                   </div>
                 ))}
               </div>
@@ -519,7 +519,7 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
               <div className="flex flex-col gap-6">
                 {orderedFeatTypes.map(type => (
                   <div key={type}>
-                    <div className="mb-2 font-sans text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-stone-700">
+                    <div className="mb-2 font-sans text-[0.63rem] font-semibold uppercase tracking-[0.16em] text-stone-500">
                       {FEAT_TYPE_LABELS[type] ?? type}
                     </div>
                     <div className="grid gap-1 sm:grid-cols-2">
