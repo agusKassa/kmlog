@@ -3,16 +3,18 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Scroll, Users, Map, StickyNote, Ghost, Settings } from 'lucide-react'
+import { Scroll, Users, Map, StickyNote, Ghost, Settings, Shield, BookOpen } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
 
 const navLinks = [
   { href: '/sessions',   label: 'Sesiones',  icon: Scroll },
-  { href: '/map',        label: 'Mapa',       icon: Map },
+  { href: '/party',      label: 'Party',     icon: Shield },
+  { href: '/map',        label: 'Mapa',      icon: Map },
   { href: '/characters', label: 'Personajes', icon: Users },
-  { href: '/npcs',       label: 'NPCs',       icon: Ghost },
+  { href: '/npcs',       label: 'NPCs',      icon: Ghost },
+  { href: '/rules',      label: 'Reglas',    icon: BookOpen },
 ]
 
 const AUTH_PATHS = ['/login', '/register']

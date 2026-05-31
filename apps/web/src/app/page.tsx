@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { api, formatDate, type ApiSession, type ApiCharacter, type ApiPartyState } from '@/lib/api'
 import { EmptyState } from './_components/empty-state'
+import { EventsCarousel } from './_components/events-carousel'
 
 // ── Status helpers ─────────────────────────────────────────────────────────
 
@@ -204,10 +205,11 @@ function CharacterStrip({ characters }: { characters: ApiCharacter[] }) {
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
-  const [sessions, characters, partyState] = await Promise.all([
+  const [sessions, characters, partyState, recentEvents] = await Promise.all([
     api.sessions.findAll(),
     api.characters.findAll(),
     api.partyState.get(),
+    api.events.recent(5),
   ])
 
   const publishedCount = sessions?.filter(s => s.status === 'published').length ?? 0
@@ -290,6 +292,19 @@ export default async function HomePage() {
         {/* Sidebar */}
         <aside className="flex flex-col gap-4 lg:sticky lg:top-[76px] lg:self-start">
           <PartyWidget state={partyState} />
+
+          {/* Recent events carousel */}
+          {recentEvents && recentEvents.length > 0 && (
+            <div>
+              <div className="mb-3 flex items-baseline justify-between px-0.5">
+                <span className="font-display text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-stone-600">
+                  Eventos recientes
+                </span>
+                <span className="text-[0.6rem] text-stone-700">{recentEvents.length} más recientes</span>
+              </div>
+              <EventsCarousel events={recentEvents} />
+            </div>
+          )}
         </aside>
       </div>
 

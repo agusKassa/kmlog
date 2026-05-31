@@ -26,6 +26,9 @@ export class Note {
 
   @Prop({ type: [Mention], default: [] })
   mentions: Mention[]
+
+  @Prop({ type: Boolean, default: false })
+  is_public: boolean
 }
 
 export const NoteSchema = SchemaFactory.createForClass(Note)

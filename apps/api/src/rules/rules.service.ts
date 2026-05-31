@@ -39,7 +39,10 @@ export class RulesService implements OnModuleInit {
 
   async search(q: string | undefined, categoryId: string | undefined, isGm: boolean): Promise<RuleDocument[]> {
     const filter: Record<string, unknown> = {}
-    if (!isGm) filter['is_public'] = true
+    if (!isGm) {
+      filter['is_public'] = true
+      filter['is_draft'] = { $ne: true }
+    }
     if (categoryId) filter['category_id'] = new Types.ObjectId(categoryId)
     if (q) filter['$text'] = { $search: q }
 
@@ -52,7 +55,7 @@ export class RulesService implements OnModuleInit {
   async findById(id: string, isGm: boolean): Promise<RuleDocument> {
     const rule = await this.ruleModel.findById(id).exec()
     if (!rule) throw new NotFoundException('Rule not found')
-    if (!isGm && !rule.is_public) throw new NotFoundException('Rule not found')
+    if (!isGm && (!rule.is_public || rule.is_draft)) throw new NotFoundException('Rule not found')
     return rule
   }
 

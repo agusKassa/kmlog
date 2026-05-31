@@ -7,9 +7,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
 
 interface Props {
   characterId: string
-  ownerId: string        // user._id that owns this character
+  ownerId: string
   portraitUrl: string | null
   name: string
+  isAlive: boolean
 }
 
 function getJwtSub(): string | null {
@@ -21,7 +22,7 @@ function getJwtSub(): string | null {
   } catch { return null }
 }
 
-export function PortraitUploader({ characterId, ownerId, portraitUrl, name }: Props) {
+export function PortraitUploader({ characterId, ownerId, portraitUrl, name, isAlive }: Props) {
   const [src, setSrc]         = useState(portraitUrl)
   const [isOwner, setIsOwner] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -75,7 +76,7 @@ export function PortraitUploader({ characterId, ownerId, portraitUrl, name }: Pr
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={name}
-          className="h-full w-full object-cover object-top" />
+          className={`h-full w-full object-cover object-top transition-all duration-500 ${isAlive ? '' : 'grayscale'}`} />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-amber-950 to-stone-900">
           <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-500/10 font-display text-[2rem] font-bold text-amber-400">

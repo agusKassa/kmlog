@@ -64,10 +64,13 @@ export function CreateCharacterButton() {
         try { build = JSON.parse(jsonText) } catch { setError('JSON inválido'); setLoading(false); return }
       }
 
+      const body: Record<string, unknown> = { build }
+      if (tab === 'pathbuilder') body.pathbuilder_id = parseInt(pbId, 10)
+
       const res = await fetch(`${API_URL}/characters/import/json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ build }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {

@@ -38,6 +38,27 @@ export class NotesService {
     return updated!
   }
 
+  async findByCharacter(characterId: string, requesterId: string | null, isGm: boolean): Promise<NoteDocument[]> {
+    const base: Record<string, unknown> = {
+      'mentions.entity_type': 'character',
+      'mentions.entity_id': new Types.ObjectId(characterId),
+    }
+
+    if (isGm) {
+      return this.noteModel.find(base).sort({ updatedAt: -1 }).limit(20).exec()
+    }
+
+    const visibilityFilter = requesterId
+      ? { $or: [{ is_public: true }, { author_id: new Types.ObjectId(requesterId) }] }
+      : { is_public: true }
+
+    return this.noteModel
+      .find({ ...base, ...visibilityFilter })
+      .sort({ updatedAt: -1 })
+      .limit(20)
+      .exec()
+  }
+
   async remove(id: string, requesterId: string, isGm: boolean): Promise<void> {
     const note = await this.noteModel.findById(id).exec()
     if (!note) throw new NotFoundException('Note not found')

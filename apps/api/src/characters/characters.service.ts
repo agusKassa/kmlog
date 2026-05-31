@@ -42,7 +42,6 @@ export class CharactersService {
 
     const obj = raw.toObject() as unknown as Record<string, unknown>
     const has_pathbuilder_id = !!obj.pathbuilder_id
-    delete obj.pathbuilder_id
     obj.has_pathbuilder_id = has_pathbuilder_id
 
     if (!isGm) {
@@ -54,6 +53,7 @@ export class CharactersService {
       const isOwner = requesterId && populatedId === requesterId
       if (!isOwner) {
         delete obj.backstory
+        delete obj.pathbuilder_id
       }
     }
 
@@ -104,7 +104,7 @@ export class CharactersService {
   }
 
   async importByJson(userId: string, dto: ImportByJsonDto): Promise<CharacterDocument> {
-    return this.createCharacter(userId, dto.build, null)
+    return this.createCharacter(userId, dto.build, dto.pathbuilder_id ?? null)
   }
 
   async importForUser(dto: ImportForUserDto): Promise<CharacterDocument> {

@@ -9,6 +9,31 @@
 
 ---
 
+## ✅ Fase 5 — Completada (Party + Notas de personaje)
+
+- ✅ 11. Vista Party — dashboard operativo filtrado por in_party + is_alive; NPCs acompañantes; resumen del grupo activo
+- ✅ 24. Notas del personaje — schema is_public, endpoint by-character, CharacterNotes client component
+
+---
+
+## ✅ Fase 4 — Completada (NPCs ítems 26-29)
+
+- ✅ 26. Botón "Nuevo NPC" (GM) en lista + formulario create/edit (`/npcs/new`, `/npcs/[id]/edit`)
+- ✅ 27. Statblock UI — editor estructurado (HP, CA, Velocidad, Salvaciones, Percepción, Atributos, Ataques, Habilidades, Resistencias) en panel GM del detalle
+- ✅ 28. Subida de retrato NPC — `POST /npcs/:id/portrait` (Cloudinary) + botón upload en panel GM
+- ✅ 29. Estados del NPC — schema + DTO: `is_with_party`, `last_seen_hex_id`, `last_seen_description`, `last_seen_at`; toggles y editor en panel GM; badge "Con la party" en el detalle
+- ⏳ 30. Integración mapa ("Última vez visto aquí") — pendiente, depende de cambios en el mapa
+
+---
+
+## ✅ Fase 3 — Completada (navbar + wiki de reglas read-only)
+
+- ✅ 15. Navbar: Party (Shield) y Reglas (BookOpen) agregados — orden final: Sesiones | Party | Mapa | Personajes | NPCs | Reglas
+- ✅ 16 (parcial). Vista `/rules`: lista con filtro por categoría + búsqueda + cards; `/rules/[id]`: detalle con renderer markdown simple
+- ✅ api.ts: tipos `ApiRule`, `ApiRuleCategory` + métodos `api.rules.*`
+
+---
+
 ## ✅ Fase 2 — Completada (ficha de personaje)
 
 - ✅ 1. Vivo/muerto + en party — schema, DTO, controles del owner, grayscale + badge en cards
@@ -44,12 +69,12 @@
 - Mismos íconos y flags del mapa real
 - Layout junto al carrusel de eventos: definir con frontend-design
 
-### 5. Carrusel de eventos y encuentros
+### ✅ 5. Carrusel de eventos y encuentros
 - Máximo 5, ordenados del más reciente al más viejo
-- Slider con puntos en la parte inferior
-- Click en punto → navega al evento
-- Nuevo endpoint: `GET /events/recent?limit=5`
-- Layout junto al mapa preview: definir con frontend-design
+- Slider con puntos en la parte inferior + arrows prev/next
+- Click en punto → navega al slide; link a la sesión desde cada card
+- Endpoint: `GET /events/recent?limit=5` (popula session_id)
+- Ubicado en sidebar del home debajo del widget de party
 
 ---
 
@@ -83,10 +108,12 @@
 
 ## Vista Party (`/party`) — nueva
 
-### 11. Dashboard operativo de la party
+### ✅ 11. Dashboard operativo de la party
 - Solo muestra personajes con `in_party: true` y vivos
 - Texto situacional del GM (ya existe, mover desde `/party` actual)
 - Cards de miembros activos con stats rápidos (nivel, clase, jugador)
+- NPCs acompañantes (`is_with_party: true`) en sidebar
+- Resumen del grupo: nivel medio, HP total, clases únicas
 - Diferenciado de `/characters` (roster histórico completo)
 
 ### 12. Agregar "Party" a la navbar
@@ -111,7 +138,7 @@
 - Títulos de sección (Atributos, Rasgos, Habilidades, etc.) más grandes y claros
 - Revisión tipográfica global: los títulos son difíciles de leer en todas las vistas — ajuste general de contraste y tamaño
 
-### 20. Reorganización del orden de secciones
+### ✅ 20. Reorganización del orden de secciones
 Nuevo orden propuesto (de más a menos consultado durante sesión):
 1. Header (retrato, nombre, nivel, clase, raza)
 2. Stats vitales: HP actual / HP máx, CA, Velocidad
@@ -143,7 +170,7 @@ Nuevo orden propuesto (de más a menos consultado durante sesión):
 - **Backstory privado**: visible solo para el owner y el GM, editable por el owner
 - Sección separada en la página de detalle con indicador de visibilidad
 
-### 24. Notas del personaje
+### ✅ 24. Notas del personaje
 - Los personajes tienen notas (públicas o privadas)
 - Notas pueden referirse a secciones, otros personajes, eventos, etc.
 - En la ficha: preview de las últimas notas públicas + botón "Ver todas"
@@ -181,9 +208,12 @@ Nuevo orden propuesto (de más a menos consultado durante sesión):
 - Navbar final: **Sesiones | Party | Mapa | Personajes | NPCs | Reglas**
 
 ### 16. Wiki de reglas
-- Cualquier jugador puede crear y editar reglas (no solo el GM)
+- ✅ Lista `/rules` con búsqueda y filtros por categoría
+- ✅ Detalle `/rules/[id]` con renderer markdown simple
+- ✅ Crear y editar reglas (solo GM) — formulario con split editor/preview markdown, categoría, tags, fuente, visibilidad
+- Cualquier jugador puede crear y editar reglas (no solo el GM) — pendiente para fase siguiente
 - Editor: Markdown con `@uiw/react-md-editor` (split write/preview, tema oscuro)
-- Ya existe un módulo `rules` en la API — revisar qué tiene implementado y extender
+- Ya existe un módulo `rules` en la API — ✅ CRUD completo implementado
 
 ### 16b. Formato obligatorio de regla (template estructurado)
 - Una regla no se puede publicar si no cumple el formato mínimo requerido

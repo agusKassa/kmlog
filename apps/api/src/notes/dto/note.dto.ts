@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator'
+import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
 import type { MentionEntityType } from '@kmlog/types'
 
@@ -19,6 +19,10 @@ export class CreateNoteDto {
   content: string
 
   @IsOptional()
+  @IsBoolean()
+  is_public?: boolean
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MentionDto)
@@ -33,6 +37,10 @@ export class UpdateNoteDto {
   @IsOptional()
   @IsString()
   content?: string
+
+  @IsOptional()
+  @IsBoolean()
+  is_public?: boolean
 
   @IsOptional()
   @IsArray()

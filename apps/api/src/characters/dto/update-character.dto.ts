@@ -1,4 +1,5 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, Min } from 'class-validator'
+import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator'
+import type { PathbuilderBuild } from '@kmlog/types'
 
 export class UpdateCharacterDto {
   @IsOptional()
@@ -25,6 +26,18 @@ export class UpdateCharacterDto {
   @IsNumber()
   @Min(0)
   current_hp?: number | null
+
+  @IsOptional()
+  @IsObject()
+  build?: PathbuilderBuild
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  pathbuilder_id?: number | null
+
+  @IsOptional()
+  last_synced_at?: Date | string | null
 }
 
 export class UpdateGmNotesDto {

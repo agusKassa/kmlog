@@ -1,4 +1,4 @@
-import { IsInt, IsMongoId, IsObject, IsString, Min } from 'class-validator'
+import { IsInt, IsMongoId, IsObject, IsOptional, IsString, Min } from 'class-validator'
 import type { PathbuilderBuild } from '@kmlog/types'
 
 export class ImportByIdDto {
@@ -10,6 +10,11 @@ export class ImportByIdDto {
 export class ImportByJsonDto {
   @IsObject()
   build: PathbuilderBuild
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  pathbuilder_id?: number | null
 }
 
 export class ImportForUserDto {

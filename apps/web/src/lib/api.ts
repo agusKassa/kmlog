@@ -126,6 +126,7 @@ export interface ApiNote {
   author_id: string
   title: string | null
   content: string
+  is_public: boolean
   mentions: ApiNoteMention[]
   createdAt: string
   updatedAt: string
@@ -238,6 +239,7 @@ export const api = {
   npcs: {
     findAll: () => apiFetch<ApiNpc[]>('/npcs'),
     findById: (id: string) => apiFetch<ApiNpc>(`/npcs/${id}`),
+    findAllGm: (token: string) => apiFetch<ApiNpc[]>('/npcs', { headers: { Authorization: `Bearer ${token}` } }),
   },
   users: {
     me: (token: string) => apiFetch<ApiUser>('/users/me', {
@@ -246,6 +248,41 @@ export const api = {
   },
   events: {
     findBySession: (sessionId: string) => apiFetch<ApiEvent[]>(`/sessions/${sessionId}/events`),
+    recent: (limit = 5) => apiFetch<ApiEvent[]>(`/events/recent?limit=${limit}`, { next: { revalidate: 60 } }),
+  },
+  notes: {
+    byCharacter: (characterId: string) =>
+      apiFetch<ApiNote[]>(`/notes/by-character/${characterId}`, { next: { revalidate: 0 } }),
+  },
+  rules: {
+    findAll: (q?: string, categoryId?: string) => {
+      const params = new URLSearchParams()
+      if (q) params.set('q', q)
+      if (categoryId) params.set('category', categoryId)
+      const qs = params.toString()
+      return apiFetch<ApiRule[]>(`/rules${qs ? `?${qs}` : ''}`)
+    },
+    findById: (id: string) => apiFetch<ApiRule>(`/rules/${id}`),
+    categories: () => apiFetch<ApiRuleCategory[]>('/rules/categories'),
+  },
+  ruleHighlights: {
+    my: (ruleId?: string, token?: string) => {
+      const qs = ruleId ? `?rule_id=${ruleId}` : ''
+      return apiFetch<ApiRuleHighlight[]>(`/rule-highlights/my${qs}`, {
+        next: { revalidate: 0 },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    },
+    byRule: (ruleId: string, token: string) =>
+      apiFetch<ApiRuleHighlight[]>(`/rule-highlights/rule/${ruleId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        next: { revalidate: 0 },
+      }),
+    byCharacter: (characterId: string, token: string) =>
+      apiFetch<ApiRuleHighlight[]>(`/rule-highlights/character/${characterId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        next: { revalidate: 0 },
+      }),
   },
 }
 
@@ -270,9 +307,16 @@ export interface ApiLootEntry {
   owner_character_id: string | null
 }
 
+export interface ApiEventSession {
+  _id: string
+  session_number: number
+  title: string
+  date_played: string | null
+}
+
 export interface ApiEvent {
   _id: string
-  session_id: string
+  session_id: string | ApiEventSession
   kind: 'event' | 'encounter'
   event_type: string | null
   difficulty: string | null
@@ -292,11 +336,59 @@ export interface ApiUser {
   createdAt: string
 }
 
+export interface ApiRuleCategory {
+  _id: string
+  name: string
+  slug: string
+  is_default: boolean
+}
+
+export interface ApiRuleHighlight {
+  _id: string
+  rule_id: string
+  user_id: string
+  character_id: string | null
+  assigned_by: string
+  createdAt: string
+}
+
+export interface ApiRuleHighlightPopulated {
+  _id: string
+  rule_id: {
+    _id: string
+    title: string
+    short_description: string | null
+    category_id: string
+    nethys_url: string | null
+    is_draft: boolean
+  }
+  user_id: string
+  character_id: string | null
+  assigned_by: string
+  createdAt: string
+}
+
+export interface ApiRule {
+  _id: string
+  title: string
+  category_id: string
+  content: string
+  short_description: string | null
+  tags: string[]
+  source: string | null
+  nethys_url: string | null
+  is_public: boolean
+  is_draft: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ApiNpc {
   _id: string
   name: string
   role: 'ally' | 'enemy' | 'neutral' | 'unknown'
   is_alive: boolean
+  is_with_party: boolean
   portrait_url: string | null
   public_description: string
   public_image_urls: string[]
@@ -305,6 +397,9 @@ export interface ApiNpc {
   stats?: Record<string, unknown> | null
   location_id: string | null
   first_seen_session_id: string | null
+  last_seen_hex_id: string | null
+  last_seen_description: string
+  last_seen_at: string | null
   createdAt: string
 }
 

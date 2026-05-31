@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { api, formatDate, abilityMod, type ApiCharacter, type ApiPartyStateVersion } from '@/lib/api'
+import { api, formatDate, abilityMod, type ApiCharacter, type ApiNpc, type ApiPartyStateVersion } from '@/lib/api'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -84,6 +84,33 @@ function MemberCard({ character, index }: { character: ApiCharacter; index: numb
   )
 }
 
+function NpcCompanionCard({ npc, index }: { npc: ApiNpc; index: number }) {
+  return (
+    <Link
+      href={`/npcs/${npc._id}`}
+      className="group flex items-center gap-3 rounded-lg border border-[#2a2826] bg-[#181412] px-3.5 py-2.5 transition-all hover:border-amber-500/20 hover:bg-[#1e1b19]"
+      style={{ animation: `fade-in-left 0.4s ease both ${index * 0.06}s` }}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-stone-900 to-stone-950 border border-[#2a2826]">
+        {npc.portrait_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={npc.portrait_url} alt={npc.name} className="h-full w-full object-cover object-top" />
+        ) : (
+          <span className="font-display text-[0.75rem] font-bold text-stone-500">
+            {npc.name.charAt(0).toUpperCase()}
+          </span>
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="font-display truncate text-[0.8rem] font-semibold tracking-[0.03em] text-stone-300 transition-colors group-hover:text-amber-400">
+          {npc.name}
+        </div>
+        <div className="text-[0.65rem] text-stone-700 capitalize">{npc.role}</div>
+      </div>
+    </Link>
+  )
+}
+
 function VersionRow({ version, index }: { version: ApiPartyStateVersion; index: number }) {
   return (
     <div
@@ -114,13 +141,19 @@ function VersionRow({ version, index }: { version: ApiPartyStateVersion; index: 
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default async function PartyPage() {
-  const [partyState, characters] = await Promise.all([
+  const [partyState, allCharacters, allNpcs] = await Promise.all([
     api.partyState.get(),
     api.characters.findAll(),
+    api.npcs.findAll(),
   ])
 
   const hasContent = partyState?.current_content && partyState.current_content.trim().length > 0
   const versions = partyState?.versions?.slice().reverse().slice(0, 5) ?? []
+
+  // Active party: in_party and alive only
+  const partyMembers = (allCharacters ?? []).filter(c => c.in_party !== false && c.is_alive !== false)
+  const deadOrOut    = (allCharacters ?? []).filter(c => c.in_party === false || c.is_alive === false)
+  const companions   = (allNpcs ?? []).filter(n => n.is_with_party && n.is_alive)
 
   return (
     <main>
@@ -144,21 +177,39 @@ export default async function PartyPage() {
           </div>
 
           <h1 className="font-display mb-3 text-[clamp(1.6rem,3.5vw,2.6rem)] font-bold leading-tight tracking-[0.06em] text-stone-50">
-            Estado del Grupo
+            La Party
           </h1>
 
           <p className="font-body text-[0.95rem] italic text-stone-600">
-            Situación actual, composición del grupo y registro histórico de la campaña.
+            Grupo activo en campaña — personajes vivos y en partido.
           </p>
 
-          {partyState?.updated_at && (
-            <div className="mt-3 flex items-center gap-2">
-              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500/60" />
-              <span className="text-[0.68rem] uppercase tracking-[0.15em] text-stone-600">
-                Actualizado {formatDate(partyState.updated_at)}
-              </span>
+          <div className="mt-4 flex flex-wrap items-center gap-5">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-[1.4rem] font-bold leading-none text-stone-200">{partyMembers.length}</span>
+              <span className="text-[0.65rem] uppercase tracking-[0.15em] text-stone-600">Activos</span>
             </div>
-          )}
+            {companions.length > 0 && (
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-[1.4rem] font-bold leading-none text-stone-200">{companions.length}</span>
+                <span className="text-[0.65rem] uppercase tracking-[0.15em] text-stone-600">Acompañantes</span>
+              </div>
+            )}
+            {deadOrOut.length > 0 && (
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-[1.4rem] font-bold leading-none text-stone-600">{deadOrOut.length}</span>
+                <span className="text-[0.65rem] uppercase tracking-[0.15em] text-stone-700">Inactivos</span>
+              </div>
+            )}
+            {partyState?.updated_at && (
+              <div className="ml-auto flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500/60" />
+                <span className="text-[0.68rem] uppercase tracking-[0.15em] text-stone-600">
+                  Actualizado {formatDate(partyState.updated_at)}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -224,29 +275,27 @@ export default async function PartyPage() {
         {/* ── Sidebar: party members ── */}
         <aside className="flex flex-col gap-4 lg:sticky lg:top-[76px] lg:self-start">
 
-          {/* Members */}
+          {/* Active members */}
           <div className="overflow-hidden rounded-xl border border-[#2a2826] bg-[#181412]">
             <div className="flex items-center justify-between border-b border-[#2a2826] px-4 py-3">
               <span className="font-display text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-stone-600">
-                Miembros
+                Miembros activos
               </span>
-              {characters && characters.length > 0 && (
-                <Link href="/characters" className="text-[0.68rem] text-stone-600 transition-colors hover:text-amber-500">
-                  Ver fichas →
-                </Link>
-              )}
+              <Link href="/characters" className="text-[0.68rem] text-stone-600 transition-colors hover:text-amber-500">
+                Roster completo →
+              </Link>
             </div>
 
             <div className="p-3">
-              {!characters || characters.length === 0 ? (
+              {partyMembers.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="font-body text-[0.85rem] italic text-stone-700">
-                    Ningún personaje registrado aún.
+                    Ningún personaje activo en party.
                   </p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {characters.map((c, i) => (
+                  {partyMembers.map((c, i) => (
                     <MemberCard key={c._id} character={c} index={i} />
                   ))}
                 </div>
@@ -254,29 +303,48 @@ export default async function PartyPage() {
             </div>
           </div>
 
-          {/* Party stats summary */}
-          {characters && characters.length > 0 && (
+          {/* NPC companions */}
+          {companions.length > 0 && (
+            <div className="overflow-hidden rounded-xl border border-[#2a2826] bg-[#181412]">
+              <div className="flex items-center justify-between border-b border-[#2a2826] px-4 py-3">
+                <span className="font-display text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-stone-600">
+                  Acompañantes
+                </span>
+                <Link href="/npcs" className="text-[0.68rem] text-stone-600 transition-colors hover:text-amber-500">
+                  Ver NPCs →
+                </Link>
+              </div>
+              <div className="flex flex-col gap-1.5 p-3">
+                {companions.map((npc, i) => (
+                  <NpcCompanionCard key={npc._id} npc={npc} index={i} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Party stats summary — active members only */}
+          {partyMembers.length > 0 && (
             <div className="rounded-xl border border-[#2a2826] bg-[#181412] px-4 py-4">
               <div className="mb-3 font-display text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-stone-600">
-                Resumen
+                Resumen del grupo activo
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {[
                   {
                     label: 'Nivel medio',
-                    value: (characters.reduce((s, c) => s + c.build.level, 0) / characters.length).toFixed(1),
+                    value: (partyMembers.reduce((s, c) => s + c.build.level, 0) / partyMembers.length).toFixed(1),
                   },
                   {
                     label: 'HP total',
-                    value: characters.reduce((s, c) => s + calcMaxHp(c), 0),
+                    value: partyMembers.reduce((s, c) => s + calcMaxHp(c), 0),
                   },
                   {
-                    label: 'Personajes',
-                    value: characters.length,
+                    label: 'Activos',
+                    value: partyMembers.length,
                   },
                   {
                     label: 'Clases',
-                    value: new Set(characters.map(c => c.build.class)).size,
+                    value: new Set(partyMembers.map(c => c.build.class)).size,
                   },
                 ].map(({ label, value }) => (
                   <div key={label} className="rounded-lg border border-[#2a2826] bg-[#0e0c0b] px-3 py-2.5 text-center">
@@ -286,6 +354,16 @@ export default async function PartyPage() {
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Inactive characters note */}
+          {deadOrOut.length > 0 && (
+            <Link
+              href="/characters"
+              className="rounded-xl border border-dashed border-[#2a2826] px-4 py-3 text-center text-[0.68rem] text-stone-700 transition-colors hover:border-[#3c3330] hover:text-stone-500"
+            >
+              {deadOrOut.length} {deadOrOut.length === 1 ? 'personaje inactivo' : 'personajes inactivos'} · Ver roster completo →
+            </Link>
           )}
 
         </aside>

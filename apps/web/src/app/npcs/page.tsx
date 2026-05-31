@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { api, type ApiNpc } from '@/lib/api'
 import { EmptyState } from '../_components/empty-state'
+import { GmNpcActions } from './_components/gm-npc-actions'
 
 // ── Design constants ──────────────────────────────────────────────────────────
 
@@ -195,9 +196,12 @@ export default async function NpcsPage({
             Personas de la Campaña
           </h1>
 
-          <p className="font-body mb-5 text-[1rem] italic text-stone-500">
-            Aliados, enemigos y figuras que la party ha conocido en las Tierras Robadas.
-          </p>
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <p className="font-body text-[1rem] italic text-stone-500">
+              Aliados, enemigos y figuras que la party ha conocido en las Tierras Robadas.
+            </p>
+            <GmNpcActions />
+          </div>
 
           {/* Counters */}
           <div className="mb-5 flex flex-wrap gap-5">

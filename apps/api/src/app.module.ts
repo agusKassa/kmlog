@@ -10,6 +10,7 @@ import { SessionsModule } from './sessions/sessions.module'
 import { NotesModule } from './notes/notes.module'
 import { PartyStateModule } from './party-state/party-state.module'
 import { RulesModule } from './rules/rules.module'
+import { RuleHighlightsModule } from './rule-highlights/rule-highlights.module'
 import { MapsModule } from './maps/maps.module'
 import { HexesModule } from './hexes/hexes.module'
 
@@ -31,6 +32,7 @@ import { HexesModule } from './hexes/hexes.module'
     NotesModule,
     PartyStateModule,
     RulesModule,
+    RuleHighlightsModule,
     MapsModule,
     HexesModule,
   ],

@@ -59,6 +59,22 @@ export class UpdateNpcPublicDto {
   @IsOptional()
   @IsString()
   first_seen_session_id?: string | null
+
+  @IsOptional()
+  @IsBoolean()
+  is_with_party?: boolean
+
+  @IsOptional()
+  @IsString()
+  last_seen_hex_id?: string | null
+
+  @IsOptional()
+  @IsString()
+  last_seen_description?: string
+
+  @IsOptional()
+  @IsString()
+  last_seen_at?: string | null
 }
 
 export class UpdateNpcPrivateDto {

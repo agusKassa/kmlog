@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { api } from '@/lib/api'
 import { ROLE_CONFIG } from '../page'
+import { GmNpcControls } from './_components/gm-npc-controls'
 
 export default async function NpcDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -76,6 +77,12 @@ export default async function NpcDetailPage({ params }: { params: Promise<{ id: 
               ) : (
                 <span className="rounded border border-stone-700/40 bg-stone-500/8 px-2.5 py-1 text-[0.68rem] uppercase tracking-[0.12em] text-stone-600">
                   💀 Muerto
+                </span>
+              )}
+              {npc.is_with_party && (
+                <span className="flex items-center gap-1.5 rounded border border-amber-500/25 bg-amber-500/8 px-2.5 py-1 text-[0.68rem] uppercase tracking-[0.12em] text-amber-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  Con la party
                 </span>
               )}
             </div>
@@ -164,6 +171,9 @@ export default async function NpcDetailPage({ params }: { params: Promise<{ id: 
             </div>
           </div>
         )}
+
+        {/* GM Panel */}
+        <GmNpcControls npc={npc} />
 
         {/* Back link */}
         <div className="mt-14 border-t border-[#2a2826] pt-8 text-center">

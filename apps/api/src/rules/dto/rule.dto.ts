@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsMongoId, IsOptional, IsString } from 'class-validator'
+import { IsArray, IsBoolean, IsMongoId, IsOptional, IsString, IsUrl } from 'class-validator'
 
 export class CreateRuleCategoryDto {
   @IsString()
@@ -19,6 +19,10 @@ export class CreateRuleDto {
   content: string
 
   @IsOptional()
+  @IsString()
+  short_description?: string
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[]
@@ -28,8 +32,16 @@ export class CreateRuleDto {
   source?: string
 
   @IsOptional()
+  @IsUrl()
+  nethys_url?: string
+
+  @IsOptional()
   @IsBoolean()
   is_public?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  is_draft?: boolean
 }
 
 export class UpdateRuleDto {
@@ -46,6 +58,10 @@ export class UpdateRuleDto {
   content?: string
 
   @IsOptional()
+  @IsString()
+  short_description?: string
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[]
@@ -55,6 +71,14 @@ export class UpdateRuleDto {
   source?: string
 
   @IsOptional()
+  @IsUrl()
+  nethys_url?: string
+
+  @IsOptional()
   @IsBoolean()
   is_public?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  is_draft?: boolean
 }

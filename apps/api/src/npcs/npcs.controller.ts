@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,8 +9,12 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
+import { memoryStorage } from 'multer'
 import { NpcsService } from './npcs.service'
 import { CreateNpcDto, UpdateNpcPrivateDto, UpdateNpcPublicDto } from './dto/npc.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
@@ -58,6 +63,18 @@ export class NpcsController {
   @Roles('gm')
   updatePrivate(@Param('id') id: string, @Body() dto: UpdateNpcPrivateDto) {
     return this.npcsService.updatePrivate(id, dto)
+  }
+
+  @Post(':id/portrait')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('gm')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  uploadPortrait(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No file provided')
+    return this.npcsService.uploadPortrait(id, file.buffer)
   }
 
   @Delete(':id')

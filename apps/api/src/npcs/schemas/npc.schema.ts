@@ -40,6 +40,18 @@ export class Npc {
 
   @Prop({ type: Types.ObjectId, ref: 'Session', default: null })
   first_seen_session_id: Types.ObjectId | null
+
+  @Prop({ type: Boolean, default: false })
+  is_with_party: boolean
+
+  @Prop({ type: Types.ObjectId, ref: 'Hex', default: null })
+  last_seen_hex_id: Types.ObjectId | null
+
+  @Prop({ type: String, default: '' })
+  last_seen_description: string
+
+  @Prop({ type: Date, default: null })
+  last_seen_at: Date | null
 }
 
 export const NpcSchema = SchemaFactory.createForClass(Npc)

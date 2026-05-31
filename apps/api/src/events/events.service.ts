@@ -23,6 +23,15 @@ export class EventsService {
     return this.eventModel.find({ session_id: sessionId }).sort({ order: 1 }).exec()
   }
 
+  async findRecent(limit: number): Promise<EventDocument[]> {
+    return this.eventModel
+      .find()
+      .populate('session_id', 'session_number title date_played')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .exec()
+  }
+
   async findById(id: string): Promise<EventDocument> {
     const event = await this.eventModel.findById(id).exec()
     if (!event) throw new NotFoundException('Event not found')

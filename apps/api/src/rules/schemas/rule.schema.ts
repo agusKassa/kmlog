@@ -18,10 +18,19 @@ export class Rule {
   tags: string[]
 
   @Prop({ type: String, trim: true, default: null })
+  short_description: string | null
+
+  @Prop({ type: String, trim: true, default: null })
   source: string | null
+
+  @Prop({ type: String, trim: true, default: null })
+  nethys_url: string | null
 
   @Prop({ default: true })
   is_public: boolean
+
+  @Prop({ default: false })
+  is_draft: boolean
 }
 
 export const RuleSchema = SchemaFactory.createForClass(Rule)
