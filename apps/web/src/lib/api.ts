@@ -199,6 +199,16 @@ export interface ApiHex {
   location_ids: string[]
 }
 
+export interface ApiRoute {
+  _id: string
+  map_id: string
+  from_hex_id: string
+  to_hex_id: string
+  status: 'traveled' | 'planned'
+  created_by: string
+  createdAt: string
+}
+
 export interface ApiLocation {
   _id: string
   name: string
@@ -231,6 +241,9 @@ export const api = {
   },
   hexes: {
     findByMap: (mapId: string) => apiFetch<ApiHex[]>(`/maps/${mapId}/hexes`),
+  },
+  routes: {
+    findByMap: (mapId: string) => apiFetch<ApiRoute[]>(`/maps/${mapId}/routes`),
   },
   locations: {
     findAll: () => apiFetch<ApiLocation[]>('/locations'),

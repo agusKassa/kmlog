@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature, ApiNpc, ApiSession } from '@/lib/api'
-import { HEX_RADIUS, hexCenter, hexPolygonPoints, hexEdgeMidpoint } from '@/lib/hex'
+import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature, ApiNpc, ApiSession, ApiRoute } from '@/lib/api'
+import { HEX_RADIUS, hexCenter, hexPolygonPoints, hexEdgeMidpoint, HEX_DIRECTIONS } from '@/lib/hex'
 
 const LINEAR_STYLE: Record<string, { stroke: string; width: number; dash?: string }> = {
   river:     { stroke: '#2a6aad', width: 2.2 },
@@ -565,7 +565,8 @@ type ActiveModal = 'location' | 'encounter' | 'event' | 'npc-move' | null
 
 function HexPanel({
   hex, locationMap, mapId, mapData, token, user, sessions, npcs,
-  onUpdate, onUpdateMap, onAddLocation, onClose,
+  routes, allHexes,
+  onUpdate, onUpdateMap, onAddLocation, onAddRoute, onUpdateRoute, onDeleteRoute, onClose,
 }: {
   hex: RichHex
   locationMap: Map<string, ApiLocation>
@@ -575,9 +576,14 @@ function HexPanel({
   user: AuthUser | null
   sessions: ApiSession[]
   npcs: ApiNpc[]
+  routes: ApiRoute[]
+  allHexes: RichHex[]
   onUpdate: (updated: RichHex) => void
   onUpdateMap: (updated: ApiGameMap) => void
   onAddLocation: (l: ApiLocation) => void
+  onAddRoute: (r: ApiRoute) => void
+  onUpdateRoute: (r: ApiRoute) => void
+  onDeleteRoute: (id: string) => void
   onClose: () => void
 }) {
   const terrain    = TERRAIN[hex.terrain] ?? TERRAIN.other
@@ -596,6 +602,8 @@ function HexPanel({
   const [notePublic, setNotePublic]           = useState(false)
   const [noteError, setNoteError]             = useState<string | null>(null)
   const [activeModal, setActiveModal]         = useState<ActiveModal>(null)
+  const [addingRoute, setAddingRoute]         = useState(false)
+  const [routeSaving, setRouteSaving]         = useState(false)
 
   useEffect(() => {
     setDescValue(hex.party_summary ?? '')
@@ -691,6 +699,65 @@ function HexPanel({
     () => npcs.filter(n => n.location_id && hexLocIds.has(n.location_id)),
     [npcs, hexLocIds]
   )
+
+  // Routes involving this hex
+  const hexRoutes = useMemo(
+    () => routes.filter(r => r.from_hex_id === hex._id || r.to_hex_id === hex._id),
+    [routes, hex._id]
+  )
+
+  // Adjacent discovered hexes that don't already have a route with this hex
+  const routedHexIds = useMemo(
+    () => new Set(hexRoutes.map(r => r.from_hex_id === hex._id ? r.to_hex_id : r.from_hex_id)),
+    [hexRoutes, hex._id]
+  )
+  const adjacentCandidates = useMemo(() => {
+    const neighbors = HEX_DIRECTIONS.map(([dq, dr]) => ({ q: hex.q + dq, r: hex.r + dr }))
+    return allHexes.filter(h =>
+      h._id !== hex._id &&
+      neighbors.some(n => n.q === h.q && n.r === h.r) &&
+      (h.is_discovered || h.is_explored) &&
+      !routedHexIds.has(h._id)
+    )
+  }, [allHexes, hex._id, hex.q, hex.r, routedHexIds])
+
+  async function createRoute(toHexId: string) {
+    if (!token) return
+    setRouteSaving(true)
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}/routes`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ from_hex_id: hex._id, to_hex_id: toHexId, status: 'planned' }),
+      })
+      if (res.ok) {
+        onAddRoute(await res.json())
+        setAddingRoute(false)
+      }
+    } finally {
+      setRouteSaving(false)
+    }
+  }
+
+  async function toggleRoute(route: ApiRoute) {
+    if (!token) return
+    const next: ApiRoute['status'] = route.status === 'traveled' ? 'planned' : 'traveled'
+    const res = await fetch(`${API_URL}/maps/${mapId}/routes/${route._id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ status: next }),
+    })
+    if (res.ok) onUpdateRoute(await res.json())
+  }
+
+  async function deleteRoute(routeId: string) {
+    if (!token) return
+    const res = await fetch(`${API_URL}/maps/${mapId}/routes/${routeId}`, {
+      method: 'DELETE',
+      headers: authHeaders,
+    })
+    if (res.ok || res.status === 204) onDeleteRoute(routeId)
+  }
 
   return (
     <>
@@ -865,6 +932,109 @@ function HexPanel({
               <p className="font-body text-[0.82rem] leading-relaxed text-amber-100/70 italic">{hex.gm_notes}</p>
             ) : (
               <p className="font-body text-[0.78rem] italic text-stone-700">Sin notas del GM.</p>
+            )}
+          </div>
+        )}
+
+        {/* Rutas */}
+        {(isLoggedIn || hexRoutes.length > 0) && (
+          <div className="mb-4">
+            <div className="mb-1.5 flex items-center justify-between">
+              <SectionLabel>Rutas{hexRoutes.length > 0 ? ` (${hexRoutes.length})` : ''}</SectionLabel>
+              {isLoggedIn && !addingRoute && adjacentCandidates.length > 0 && (
+                <button onClick={() => setAddingRoute(true)}
+                  className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400">
+                  + nueva
+                </button>
+              )}
+            </div>
+
+            {/* Existing routes */}
+            {hexRoutes.length > 0 && (
+              <div className="mb-2 flex flex-col gap-1.5">
+                {hexRoutes.map(route => {
+                  const otherId = route.from_hex_id === hex._id ? route.to_hex_id : route.from_hex_id
+                  const other   = allHexes.find(h => h._id === otherId)
+                  const isTraveled = route.status === 'traveled'
+                  const locName = other?.point_features[0]?.label ?? other?.region ?? null
+                  return (
+                    <div key={route._id}
+                      className="flex items-center gap-2 rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[0.75rem] font-medium text-stone-300 leading-tight">
+                          {locName ?? `Q:${other?.q ?? '?'} R:${other?.r ?? '?'}`}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[0.58rem] font-medium uppercase tracking-[0.08em] ${
+                        isTraveled
+                          ? 'border-amber-500/25 bg-amber-500/10 text-amber-400'
+                          : 'border-stone-700/40 bg-stone-500/8 text-stone-500'
+                      }`}>
+                        {isTraveled ? 'Transitada' : 'Planificada'}
+                      </span>
+                      {isLoggedIn && (
+                        <button
+                          onClick={() => toggleRoute(route)}
+                          title={isTraveled ? 'Marcar planificada' : 'Marcar transitada'}
+                          className="shrink-0 text-stone-700 transition-colors hover:text-amber-400">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                          </svg>
+                        </button>
+                      )}
+                      {isLoggedIn && (
+                        <button
+                          onClick={() => deleteRoute(route._id)}
+                          className="shrink-0 text-stone-700 transition-colors hover:text-red-400">
+                          <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Add route — adjacent hex picker */}
+            {addingRoute && (
+              <div className="rounded-lg border border-[#2a2826] bg-[#141210] p-2.5">
+                <p className="mb-2 text-[0.63rem] uppercase tracking-[0.1em] text-stone-600">
+                  Conectar con hex adyacente
+                </p>
+                {adjacentCandidates.length === 0 ? (
+                  <p className="text-[0.75rem] italic text-stone-700">No hay hexes adyacentes disponibles.</p>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {adjacentCandidates.map(adj => {
+                      const name = adj.point_features[0]?.label ?? adj.region ?? `Q:${adj.q} R:${adj.r}`
+                      return (
+                        <button key={adj._id}
+                          onClick={() => createRoute(adj._id)}
+                          disabled={routeSaving}
+                          className="flex items-center gap-2 rounded-md border border-[#2a2826] px-2.5 py-1.5 text-left text-[0.75rem] text-stone-400 transition-all hover:border-amber-500/25 hover:bg-amber-500/5 hover:text-amber-400 disabled:opacity-50">
+                          <span className="text-stone-600">◈</span>
+                          {name}
+                          <span className={`ml-auto rounded px-1.5 py-0.5 text-[0.58rem] uppercase ${
+                            adj.is_explored ? 'bg-green-500/10 text-green-500/70' : 'bg-sky-500/10 text-sky-500/70'
+                          }`}>
+                            {adj.is_explored ? 'Explorado' : 'Descubierto'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <button onClick={() => setAddingRoute(false)}
+                  className="mt-2 w-full text-center text-[0.65rem] text-stone-700 hover:text-stone-500">
+                  Cancelar
+                </button>
+              </div>
+            )}
+
+            {hexRoutes.length === 0 && !addingRoute && (
+              <p className="font-body text-[0.82rem] italic text-stone-700">Sin rutas marcadas.</p>
             )}
           </div>
         )}
@@ -1165,15 +1335,17 @@ type Props = {
   locations: ApiLocation[]
   sessions?: ApiSession[]
   npcs?: ApiNpc[]
+  routes?: ApiRoute[]
 }
 
 type ViewState = { pan: { x: number; y: number }; zoom: number }
 
-export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Props) {
+export function MapView({ map, hexes, locations, sessions = [], npcs = [], routes = [] }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [localHexes, setLocalHexes]       = useState<RichHex[]>(hexes as RichHex[])
   const [localMap, setLocalMap]           = useState<ApiGameMap>(map)
   const [localLocations, setLocalLocations] = useState<ApiLocation[]>(locations)
+  const [localRoutes, setLocalRoutes]     = useState<ApiRoute[]>(routes)
   const [selectedHexId, setSelectedHexId] = useState<string | null>(null)
   const [hoveredHexId, setHoveredHexId]   = useState<string | null>(null)
   const [filterType, setFilterType]       = useState<string | null>(null)
@@ -1250,6 +1422,22 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
   const handleAddLocation = useCallback((loc: ApiLocation) => {
     setLocalLocations(prev => [...prev, loc])
   }, [])
+
+  const handleAddRoute = useCallback((r: ApiRoute) => {
+    setLocalRoutes(prev => [...prev, r])
+  }, [])
+  const handleUpdateRoute = useCallback((r: ApiRoute) => {
+    setLocalRoutes(prev => prev.map(x => x._id === r._id ? r : x))
+  }, [])
+  const handleDeleteRoute = useCallback((id: string) => {
+    setLocalRoutes(prev => prev.filter(x => x._id !== id))
+  }, [])
+
+  // hex._id → pixel center, for route line rendering
+  const hexPixelMap = useMemo(
+    () => new Map(hexData.map(h => [h._id, { x: h.x, y: h.y }])),
+    [hexData]
+  )
 
   // Non-passive wheel handler via refs
   const viewRef  = useRef(view)
@@ -1520,6 +1708,28 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
                     </g>
                   )
                 })}
+
+                {/* Routes — drawn after hexes so they appear on top */}
+                <g style={{ pointerEvents: 'none' }}>
+                  {localRoutes.map(route => {
+                    const a = hexPixelMap.get(route.from_hex_id)
+                    const b = hexPixelMap.get(route.to_hex_id)
+                    if (!a || !b) return null
+                    const traveled = route.status === 'traveled'
+                    return (
+                      <line
+                        key={route._id}
+                        x1={a.x} y1={a.y}
+                        x2={b.x} y2={b.y}
+                        stroke={traveled ? '#d97706' : '#78716c'}
+                        strokeWidth={traveled ? 2.5 : 1.8}
+                        strokeDasharray={traveled ? undefined : '5 4'}
+                        strokeLinecap="round"
+                        opacity={traveled ? 0.72 : 0.45}
+                      />
+                    )
+                  })}
+                </g>
               </g>
             </svg>
           </>
@@ -1538,9 +1748,14 @@ export function MapView({ map, hexes, locations, sessions = [], npcs = [] }: Pro
             user={user}
             sessions={sessions}
             npcs={npcs}
+            routes={localRoutes}
+            allHexes={localHexes}
             onUpdate={handleHexUpdate}
             onUpdateMap={setLocalMap}
             onAddLocation={handleAddLocation}
+            onAddRoute={handleAddRoute}
+            onUpdateRoute={handleUpdateRoute}
+            onDeleteRoute={handleDeleteRoute}
             onClose={() => setSelectedHexId(null)}
           />
         ) : (
