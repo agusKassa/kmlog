@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { api } from '@/lib/api'
 import { ROLE_CONFIG } from '../page'
 import { GmNpcControls } from './_components/gm-npc-controls'
+import { NoteDrawer } from '@/app/_components/note-drawer'
 
 export default async function NpcDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -174,6 +175,9 @@ export default async function NpcDetailPage({ params }: { params: Promise<{ id: 
 
         {/* GM Panel */}
         <GmNpcControls npc={npc} />
+
+        {/* Notes drawer */}
+        <NoteDrawer entityType="npc" entityId={npc._id} />
 
         {/* Back link */}
         <div className="mt-14 border-t border-[#2a2826] pt-8 text-center">

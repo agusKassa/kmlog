@@ -124,9 +124,11 @@ export interface ApiNoteMention {
 export interface ApiNote {
   _id: string
   author_id: string
+  author_character_id: string | null
   title: string | null
   content: string
   is_public: boolean
+  is_pinned: boolean
   mentions: ApiNoteMention[]
   createdAt: string
   updatedAt: string
@@ -266,6 +268,8 @@ export const api = {
   notes: {
     byCharacter: (characterId: string) =>
       apiFetch<ApiNote[]>(`/notes/by-character/${characterId}`, { next: { revalidate: 0 } }),
+    byEntity: (entityType: MentionEntityType, entityId: string) =>
+      apiFetch<ApiNote[]>(`/notes/by-entity?entity_type=${entityType}&entity_id=${entityId}`, { next: { revalidate: 0 } }),
   },
   rules: {
     findAll: (q?: string, categoryId?: string) => {

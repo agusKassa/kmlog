@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { NotesService } from './notes.service'
 import { CreateNoteDto, UpdateNoteDto } from './dto/note.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
@@ -18,6 +18,22 @@ export class NotesController {
   ) {
     return this.notesService.findByCharacter(
       characterId,
+      user ? String(user._id) : null,
+      user?.role === 'gm',
+    )
+  }
+
+  // GET /notes/by-entity?entity_type=npc&entity_id=abc
+  @Get('by-entity')
+  @UseGuards(OptionalJwtGuard)
+  findByEntity(
+    @Query('entity_type') entityType: string,
+    @Query('entity_id') entityId: string,
+    @CurrentUser() user: UserDocument | null,
+  ) {
+    return this.notesService.findByEntity(
+      entityType,
+      entityId,
       user ? String(user._id) : null,
       user?.role === 'gm',
     )

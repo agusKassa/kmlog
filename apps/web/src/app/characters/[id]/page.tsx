@@ -8,6 +8,7 @@ import { SyncButton } from './_components/sync-button'
 import { PublicBioEditor } from './_components/public-bio-editor'
 import { CharacterNotes } from './_components/character-notes'
 import { CharacterHighlights } from './_components/character-highlights'
+import { NoteDrawer } from '@/app/_components/note-drawer'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -553,6 +554,9 @@ export default async function CharacterDetailPage({ params }: { params: Promise<
 
           {/* Character notes */}
           <CharacterNotes characterId={character._id} ownerId={ownerId} />
+
+          {/* Notes drawer */}
+          <NoteDrawer entityType="character" entityId={character._id} />
 
         </div>
       </div>

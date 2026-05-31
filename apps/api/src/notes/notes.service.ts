@@ -39,13 +39,26 @@ export class NotesService {
   }
 
   async findByCharacter(characterId: string, requesterId: string | null, isGm: boolean): Promise<NoteDocument[]> {
+    return this.findByEntity('character', characterId, requesterId, isGm)
+  }
+
+  async findByEntity(
+    entityType: string,
+    entityId: string,
+    requesterId: string | null,
+    isGm: boolean,
+  ): Promise<NoteDocument[]> {
     const base: Record<string, unknown> = {
-      'mentions.entity_type': 'character',
-      'mentions.entity_id': new Types.ObjectId(characterId),
+      'mentions.entity_type': entityType,
+      'mentions.entity_id': new Types.ObjectId(entityId),
     }
 
     if (isGm) {
-      return this.noteModel.find(base).sort({ updatedAt: -1 }).limit(20).exec()
+      return this.noteModel
+        .find(base)
+        .sort({ is_pinned: -1, updatedAt: -1 })
+        .limit(50)
+        .exec()
     }
 
     const visibilityFilter = requesterId
@@ -54,8 +67,8 @@ export class NotesService {
 
     return this.noteModel
       .find({ ...base, ...visibilityFilter })
-      .sort({ updatedAt: -1 })
-      .limit(20)
+      .sort({ is_pinned: -1, updatedAt: -1 })
+      .limit(50)
       .exec()
   }
 

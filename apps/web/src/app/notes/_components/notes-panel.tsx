@@ -51,11 +51,17 @@ function NoteListItem({
         <span className={`font-display truncate text-[0.82rem] font-semibold tracking-[0.03em] ${
           active ? 'text-amber-400' : 'text-stone-200'
         }`}>
+          {note.is_pinned && <span className="mr-1.5 text-[0.7rem]">📌</span>}
           {note.title ?? <span className="font-body italic text-stone-600">Sin título</span>}
         </span>
-        <span className="shrink-0 text-[0.6rem] text-stone-700 mt-0.5">
-          {relativeDate(note.updatedAt)}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="text-[0.6rem] text-stone-700">{relativeDate(note.updatedAt)}</span>
+          <span className={`rounded border px-1 py-px text-[0.55rem] uppercase ${
+            note.is_public ? 'border-green-500/15 text-green-600' : 'border-stone-700/30 text-stone-700'
+          }`}>
+            {note.is_public ? 'pública' : 'privada'}
+          </span>
+        </div>
       </div>
       <p className="mt-0.5 truncate text-[0.72rem] text-stone-600">
         {excerpt(note.content)}
@@ -153,10 +159,12 @@ function NoteEditor({
   onSaved: (note: ApiNote) => void
   onCancel: () => void
 }) {
-  const [title, setTitle] = useState(initial?.title ?? '')
-  const [content, setContent] = useState(initial?.content ?? '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [title,    setTitle]    = useState(initial?.title    ?? '')
+  const [content,  setContent]  = useState(initial?.content  ?? '')
+  const [isPublic, setIsPublic] = useState(initial?.is_public ?? false)
+  const [isPinned, setIsPinned] = useState(initial?.is_pinned ?? false)
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -164,17 +172,12 @@ function NoteEditor({
     setError(null)
     setSaving(true)
     try {
+      const body = { title: title.trim() || null, content: content.trim(), is_public: isPublic, is_pinned: isPinned }
       let note: ApiNote
       if (initial) {
-        note = await clientFetch<ApiNote>(`/notes/${initial._id}`, token, {
-          method: 'PATCH',
-          body: JSON.stringify({ title: title.trim() || null, content: content.trim() }),
-        })
+        note = await clientFetch<ApiNote>(`/notes/${initial._id}`, token, { method: 'PATCH', body: JSON.stringify(body) })
       } else {
-        note = await clientFetch<ApiNote>('/notes', token, {
-          method: 'POST',
-          body: JSON.stringify({ title: title.trim() || null, content: content.trim() }),
-        })
+        note = await clientFetch<ApiNote>('/notes', token, { method: 'POST', body: JSON.stringify(body) })
       }
       onSaved(note)
     } catch (err) {
@@ -211,21 +214,30 @@ function NoteEditor({
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2 border-t border-[#2a2826] pt-4">
-        <button
-          type="submit"
-          disabled={saving || !content.trim()}
-          className="rounded-lg bg-amber-500 px-4 py-2 font-display text-[0.72rem] font-bold uppercase tracking-[0.15em] text-stone-950 transition-colors hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {saving ? 'Guardando...' : initial ? 'Guardar cambios' : 'Crear nota'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg border border-[#3c3330] px-4 py-2 text-[0.72rem] text-stone-500 transition-colors hover:bg-[#232120] hover:text-stone-300"
-        >
-          Cancelar
-        </button>
+      <div className="flex items-center justify-between border-t border-[#2a2826] pt-4">
+        <div className="flex items-center gap-4">
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} className="h-3 w-3 accent-amber-500" />
+            <span className="text-[0.68rem] text-stone-600">Pública</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} className="h-3 w-3 accent-amber-500" />
+            <span className="text-[0.68rem] text-stone-600">Anclar 📌</span>
+          </label>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={saving || !content.trim()}
+            className="rounded-lg bg-amber-500 px-4 py-2 font-display text-[0.72rem] font-bold uppercase tracking-[0.15em] text-stone-950 transition-colors hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Guardando...' : initial ? 'Guardar cambios' : 'Crear nota'}
+          </button>
+          <button type="button" onClick={onCancel}
+            className="rounded-lg border border-[#3c3330] px-4 py-2 text-[0.72rem] text-stone-500 transition-colors hover:bg-[#232120] hover:text-stone-300">
+            Cancelar
+          </button>
+        </div>
       </div>
     </form>
   )

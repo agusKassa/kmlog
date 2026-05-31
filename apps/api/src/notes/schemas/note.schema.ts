@@ -4,9 +4,13 @@ import type { MentionEntityType } from '@kmlog/types'
 
 export type NoteDocument = HydratedDocument<Note>
 
+const ENTITY_TYPES: MentionEntityType[] = [
+  'character', 'npc', 'location', 'session', 'hex', 'rule', 'encounter',
+]
+
 @Schema({ _id: false })
 class Mention {
-  @Prop({ required: true, enum: ['character', 'npc', 'location', 'session'] })
+  @Prop({ required: true, enum: ENTITY_TYPES })
   entity_type: MentionEntityType
 
   @Prop({ type: Types.ObjectId, required: true })
@@ -17,6 +21,9 @@ class Mention {
 export class Note {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   author_id: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: 'Character', default: null })
+  author_character_id: Types.ObjectId | null
 
   @Prop({ type: String, default: null })
   title: string | null
@@ -29,6 +36,11 @@ export class Note {
 
   @Prop({ type: Boolean, default: false })
   is_public: boolean
+
+  @Prop({ type: Boolean, default: false })
+  is_pinned: boolean
 }
 
 export const NoteSchema = SchemaFactory.createForClass(Note)
+
+NoteSchema.index({ 'mentions.entity_type': 1, 'mentions.entity_id': 1 })

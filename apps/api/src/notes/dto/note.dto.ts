@@ -1,9 +1,11 @@
-import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator'
+import { IsArray, IsBoolean, IsEnum, IsMongoId, IsOptional, IsString, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
 import type { MentionEntityType } from '@kmlog/types'
 
+const ENTITY_TYPES = ['character', 'npc', 'location', 'session', 'hex', 'rule', 'encounter'] as const
+
 class MentionDto {
-  @IsEnum(['character', 'npc', 'location', 'session'])
+  @IsEnum(ENTITY_TYPES)
   entity_type: MentionEntityType
 
   @IsString()
@@ -21,6 +23,14 @@ export class CreateNoteDto {
   @IsOptional()
   @IsBoolean()
   is_public?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  is_pinned?: boolean
+
+  @IsOptional()
+  @IsMongoId()
+  author_character_id?: string | null
 
   @IsOptional()
   @IsArray()
@@ -41,6 +51,14 @@ export class UpdateNoteDto {
   @IsOptional()
   @IsBoolean()
   is_public?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  is_pinned?: boolean
+
+  @IsOptional()
+  @IsMongoId()
+  author_character_id?: string | null
 
   @IsOptional()
   @IsArray()

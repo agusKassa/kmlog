@@ -16,7 +16,7 @@ export type LocationType = 'city' | 'dungeon' | 'wilderness' | 'building' | 'reg
 
 export type NpcRole = 'ally' | 'enemy' | 'neutral' | 'unknown'
 
-export type MentionEntityType = 'character' | 'npc' | 'location' | 'session' | 'hex'
+export type MentionEntityType = 'character' | 'npc' | 'location' | 'session' | 'hex' | 'rule' | 'encounter'
 
 // ── Hex map types ─────────────────────────────────────────────────────────────
 
