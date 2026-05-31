@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { api, formatDate, type ApiSession, type ApiCharacter, type ApiPartyState } from '@/lib/api'
 import { EmptyState } from './_components/empty-state'
 import { EventsCarousel } from './_components/events-carousel'
+import { MapPreview } from './_components/map-preview'
 
 // ── Status helpers ─────────────────────────────────────────────────────────
 
@@ -205,12 +206,16 @@ function CharacterStrip({ characters }: { characters: ApiCharacter[] }) {
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
-  const [sessions, characters, partyState, recentEvents] = await Promise.all([
+  const [sessions, characters, partyState, recentEvents, maps] = await Promise.all([
     api.sessions.findAll(),
     api.characters.findAll(),
     api.partyState.get(),
     api.events.recent(5),
+    api.maps.findAll(),
   ])
+
+  const mapData  = maps?.[0] ?? null
+  const mapHexes = mapData ? (await api.hexes.findByMap(mapData._id)) ?? [] : []
 
   const publishedCount = sessions?.filter(s => s.status === 'published').length ?? 0
 
@@ -307,6 +312,9 @@ export default async function HomePage() {
           )}
         </aside>
       </div>
+
+      {/* ── MAP PREVIEW ── */}
+      {mapData && <MapPreview map={mapData} hexes={mapHexes} />}
 
       {/* ── CHARACTERS STRIP ── */}
       <section
