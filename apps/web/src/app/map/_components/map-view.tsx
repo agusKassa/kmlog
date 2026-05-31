@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature, ApiNpc, ApiSession, ApiRoute } from '@/lib/api'
+import type { ApiGameMap, ApiHex, ApiLocation, ApiHexPointFeature, ApiNpc, ApiSession, ApiRoute, ApiNote } from '@/lib/api'
 import { HEX_RADIUS, hexCenter, hexPolygonPoints, hexEdgeMidpoint, HEX_DIRECTIONS } from '@/lib/hex'
 
 const LINEAR_STYLE: Record<string, { stroke: string; width: number; dash?: string }> = {
@@ -726,11 +726,42 @@ function HexPanel({
   const [activeModal, setActiveModal]         = useState<ActiveModal>(null)
   const [addingRoute, setAddingRoute]         = useState(false)
   const [routeSaving, setRouteSaving]         = useState(false)
+  const [globalNotes, setGlobalNotes]         = useState<ApiNote[]>([])
+  const [fetchingGN, setFetchingGN]           = useState(false)
+  const [showGNForm, setShowGNForm]           = useState(false)
+  const [gnContent, setGnContent]             = useState('')
+  const [gnPublic, setGnPublic]               = useState(false)
+  const [gnPinned, setGnPinned]               = useState(false)
+  const [gnSaving, setGnSaving]               = useState(false)
 
   useEffect(() => {
     setDescValue(hex.party_summary ?? '')
     setGmNotesValue(hex.gm_notes ?? '')
   }, [hex._id, hex.party_summary, hex.gm_notes])
+
+  // Fetch global (campaign) notes for this hex whenever it changes
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setFetchingGN(true)
+      setGlobalNotes([])
+      setShowGNForm(false)
+      setGnContent('')
+      try {
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        const res = await fetch(
+          `${API_URL}/notes/by-entity?entity_type=hex&entity_id=${hex._id}`,
+          { headers }
+        )
+        if (!cancelled && res.ok) setGlobalNotes(await res.json() as ApiNote[])
+      } catch { /* ignore */ } finally {
+        if (!cancelled) setFetchingGN(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [hex._id, token])
 
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 
@@ -885,6 +916,57 @@ function HexPanel({
       headers: authHeaders,
     })
     if (res.ok || res.status === 204) onDeleteRoute(routeId)
+  }
+
+  async function createGlobalNote() {
+    if (!token || !gnContent.trim()) return
+    setGnSaving(true)
+    try {
+      const res = await fetch(`${API_URL}/notes`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          content: gnContent.trim(),
+          is_public: gnPublic,
+          is_pinned: gnPinned,
+          mentions: [{ entity_type: 'hex', entity_id: hex._id }],
+        }),
+      })
+      if (res.ok) {
+        const created = await res.json() as ApiNote
+        setGlobalNotes(prev => [created, ...prev])
+        setGnContent('')
+        setGnPublic(false)
+        setGnPinned(false)
+        setShowGNForm(false)
+      }
+    } finally {
+      setGnSaving(false)
+    }
+  }
+
+  async function pinGlobalNote(note: ApiNote) {
+    if (!token) return
+    const res = await fetch(`${API_URL}/notes/${note._id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ is_pinned: !note.is_pinned }),
+    })
+    if (res.ok) {
+      const updated = await res.json() as ApiNote
+      setGlobalNotes(prev => prev.map(n => n._id === updated._id ? updated : n))
+    }
+  }
+
+  async function deleteGlobalNote(noteId: string) {
+    if (!token) return
+    const res = await fetch(`${API_URL}/notes/${noteId}`, {
+      method: 'DELETE',
+      headers: authHeaders,
+    })
+    if (res.ok || res.status === 204) {
+      setGlobalNotes(prev => prev.filter(n => n._id !== noteId))
+    }
   }
 
   return (
@@ -1297,6 +1379,103 @@ function HexPanel({
             </div>
           ) : (
             <p className="font-body text-[0.82rem] italic text-stone-700">Sin notas.</p>
+          )}
+        </div>
+
+        {/* Notas de campaña (global notes linked to this hex) */}
+        <div className="mb-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <SectionLabel>
+              Notas de campaña{globalNotes.length > 0 ? ` (${globalNotes.length})` : ''}
+            </SectionLabel>
+            {isLoggedIn && !showGNForm && (
+              <button onClick={() => setShowGNForm(true)}
+                className="text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400">
+                + agregar
+              </button>
+            )}
+          </div>
+
+          {/* Create form */}
+          {showGNForm && (
+            <div className="mb-3 rounded-lg border border-[#2a2826] bg-[#141210] p-3">
+              <textarea
+                value={gnContent}
+                onChange={e => setGnContent(e.target.value)}
+                placeholder="Nota de campaña sobre este hex..." rows={3} autoFocus
+                className="mb-2 w-full resize-none bg-transparent text-[0.82rem] text-stone-300 placeholder-stone-700 outline-none" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input type="checkbox" checked={gnPublic} onChange={e => setGnPublic(e.target.checked)}
+                      className="h-3 w-3 accent-amber-500" />
+                    <span className="text-[0.62rem] text-stone-600">Pública</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input type="checkbox" checked={gnPinned} onChange={e => setGnPinned(e.target.checked)}
+                      className="h-3 w-3 accent-amber-500" />
+                    <span className="text-[0.62rem] text-stone-600">Anclar</span>
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={createGlobalNote} disabled={gnSaving || !gnContent.trim()}
+                    className="rounded border border-amber-500/20 bg-amber-500/15 px-3 py-1 text-[0.68rem] font-medium text-amber-400 transition-colors hover:bg-amber-500/20 disabled:opacity-40">
+                    {gnSaving ? 'Guardando...' : 'Guardar'}
+                  </button>
+                  <button onClick={() => { setShowGNForm(false); setGnContent('') }}
+                    className="text-[0.68rem] text-stone-700 transition-colors hover:text-stone-400">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Notes list */}
+          {fetchingGN ? (
+            <div className="flex justify-center py-4">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#3c3330] border-t-amber-500" />
+            </div>
+          ) : globalNotes.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {[...globalNotes].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0))
+                .map(note => (
+                  <div key={note._id}
+                    className="group rounded-lg border border-[#2a2826] bg-[#141210] px-3 py-2.5">
+                    <div className="mb-1.5 flex items-center gap-2">
+                      {note.is_pinned && (
+                        <span className="text-[0.6rem] text-amber-500/70">📌</span>
+                      )}
+                      <span className={`rounded border px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.08em] ${
+                        note.is_public
+                          ? 'border-green-500/15 bg-green-500/10 text-green-500/80'
+                          : 'border-stone-700/30 bg-stone-500/10 text-stone-600'
+                      }`}>
+                        {note.is_public ? 'Pública' : 'Privada'}
+                      </span>
+                      <div className="flex-1" />
+                      {(isGm || note.author_id === user?.id) && (
+                        <>
+                          <button
+                            onClick={() => pinGlobalNote(note)}
+                            title={note.is_pinned ? 'Desanclar' : 'Anclar'}
+                            className="hidden text-[0.6rem] text-stone-700 transition-colors hover:text-amber-400 group-hover:block">
+                            {note.is_pinned ? '◌' : '📌'}
+                          </button>
+                          <button
+                            onClick={() => deleteGlobalNote(note._id)}
+                            className="hidden text-[0.6rem] text-stone-700 transition-colors hover:text-red-400 group-hover:block">
+                            eliminar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <p className="font-body text-[0.82rem] leading-relaxed text-stone-400">{note.content}</p>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="font-body text-[0.82rem] italic text-stone-700">Sin notas de campaña.</p>
           )}
         </div>
 
