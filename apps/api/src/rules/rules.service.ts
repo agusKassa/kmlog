@@ -59,10 +59,11 @@ export class RulesService implements OnModuleInit {
     return rule
   }
 
-  async create(dto: CreateRuleDto): Promise<RuleDocument> {
+  async create(dto: CreateRuleDto, authorId: string): Promise<RuleDocument> {
     return this.ruleModel.create({
       ...dto,
       category_id: new Types.ObjectId(dto.category_id),
+      created_by: new Types.ObjectId(authorId),
     })
   }
 

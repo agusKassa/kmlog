@@ -11,6 +11,9 @@ export class Rule {
   @Prop({ type: Types.ObjectId, ref: 'RuleCategory', required: true })
   category_id: Types.ObjectId
 
+  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  created_by: Types.ObjectId | null
+
   @Prop({ required: true })
   content: string
 

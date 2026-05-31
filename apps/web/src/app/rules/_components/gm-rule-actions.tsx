@@ -5,9 +5,9 @@ import { Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
 export function GmRuleActions() {
-  const { isGm } = useAuth()
+  const { isAuthenticated } = useAuth()
 
-  if (!isGm) return null
+  if (!isAuthenticated) return null
 
   return (
     <Link

@@ -63,15 +63,13 @@ export class RulesController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('gm')
-  create(@Body() dto: CreateRuleDto) {
-    return this.rulesService.create(dto)
+  @UseGuards(JwtAuthGuard)
+  create(@Body() dto: CreateRuleDto, @CurrentUser() user: UserDocument) {
+    return this.rulesService.create(dto, String(user._id))
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('gm')
+  @UseGuards(JwtAuthGuard)
   update(@Param('id') id: string, @Body() dto: UpdateRuleDto) {
     return this.rulesService.update(id, dto)
   }
